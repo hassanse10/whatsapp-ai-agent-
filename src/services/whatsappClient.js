@@ -8,12 +8,20 @@ let currentQR = null;
 let isReady = false;
 
 const createClient = () => {
+  // Configure browser path for different environments
+  const puppeteerConfig = {
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  };
+
+  // On Render, use the installed Chrome or system Chrome
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+
   client = new Client({
     authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
-    puppeteer: {
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    },
+    puppeteer: puppeteerConfig,
   });
 
   client.on('qr', async (qr) => {
