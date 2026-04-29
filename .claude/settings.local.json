@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm ls *)",
+      "Bash(docker --version)",
+      "Bash(psql --version)",
+      "Bash(pg_isready)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); const OpenAI = require\\('openai'\\); const c = new OpenAI\\({ apiKey: process.env.OPENROUTER_API_KEY, baseURL: 'https://openrouter.ai/api/v1' }\\); c.chat.completions.create\\({ model: 'openai/gpt-4o-mini', max_tokens: 30, messages: [{ role: 'user', content: 'Say: API connection works!' }] }\\).then\\(r => console.log\\('✅', r.choices[0].message.content\\)\\).catch\\(e => console.error\\('❌', e.message\\)\\);\")",
+      "Bash(npm run *)",
+      "Bash(timeout 8 node src/index.js)",
+      "Bash(exit 0)",
+      "Bash(node src/index.js)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "PowerShell(Get-Process -Id \\(Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue\\).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force; Write-Host \"Port 3000 cleared\")",
+      "Bash(node scripts/sendTest.js)",
+      "Bash(curl -s -X POST http://localhost:3000/admin/send -H 'Content-Type: application/json' -d '{\"to\": \"212642444193\", \"message\": \"👋 Hello Hassan!\\\\n\\\\nYour WhatsApp AI Agent is working perfectly! 🎉\\\\n\\\\nHere'\\\\''s what I can do:\\\\n🛍️ Help you order products\\\\n📦 Track your orders\\\\n❓ Answer your questions\\\\n🆘 Connect you with a human agent\\\\n\\\\nTry replying: *Hi* to get started!\"}')",
+      "Bash(node -e ' *)",
+      "Bash(node scripts/migrate.js)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Write-Output \"Port 3000 cleared\")",
+      "Bash(echo \"Started PID $!\")",
+      "Bash(echo \"PID $!\")"
+    ]
+  }
+}
