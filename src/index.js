@@ -11,6 +11,7 @@ const { processMessage } = require('./controllers/whatsappController');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.set('trust proxy', 1); // Required for Render/Heroku reverse proxy
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200 }));
 app.use(express.json());
