@@ -75,7 +75,7 @@ const sendMessage = async (userMessage, conversationHistory = []) => {
     ];
 
     const response = await client.chat.completions.create({
-      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
+      model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
       max_tokens: 1024,
       messages,
     });
@@ -129,7 +129,7 @@ const sendMessage = async (userMessage, conversationHistory = []) => {
 const detectIntent = async (userMessage) => {
   try {
     const response = await client.chat.completions.create({
-      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
+      model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
       max_tokens: 20,
       messages: [
         {
@@ -155,7 +155,7 @@ const detectIntent = async (userMessage) => {
 const extractEntities = async (userMessage) => {
   try {
     const response = await client.chat.completions.create({
-      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
+      model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
       max_tokens: 200,
       messages: [
         {
@@ -183,7 +183,7 @@ const extractEntities = async (userMessage) => {
 const analyzeSentiment = async (userMessage) => {
   try {
     const response = await client.chat.completions.create({
-      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
+      model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
       max_tokens: 10,
       messages: [
         {
