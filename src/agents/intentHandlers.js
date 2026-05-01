@@ -6,25 +6,74 @@ const conversationService = require('../services/conversationService');
 const { FAQ } = require('../config/constants');
 
 const handleGreeting = async (context) => {
-  return `👋 مرحبا بيك! كيفاش نقدر نعاونك اليوم؟
-
-نقدر نشوفك المنتجات، نساعدك تدير طلبية، تتبعو طلبياتك القديمة، أو نجاوب على أي سؤال عندك عن الأرجاع والتوصيل والأداء.
-
-شنو بغيتي؟`;
+  const { customer } = context;
+  let greeting = `👋 مرحبا بيك`;
+  if (customer?.name) {
+    greeting += ` يا ${customer.name}`;
+  }
+  greeting += `! 🎉\n\nكيفاش نقدر نعاونك اليوم؟\n\n`;
+  greeting += `نقدر نـ:\n`;
+  greeting += `✨ نعرضك المنتجات الديال ندينا (ملابس، أحذية، حقايب، إكسسوارات)\n`;
+  greeting += `📦 نساعدك تدير طلبية جديدة\n`;
+  greeting += `🔍 تتبعو طلبياتك القديمة\n`;
+  greeting += `💬 نجاوب على أي سؤال عندك\n\n`;
+  greeting += `شنو بغيتي؟`;
+  return greeting;
 };
 
 const handleProductInfo = async (context) => {
-  const { msg } = context;
+  const { msg, message, entities } = context;
   const { PRODUCTS } = require('../config/constants');
   const { MessageMedia } = require('whatsapp-web.js');
   const { formatPrice } = require('../utils/helpers');
 
-  for (const product of PRODUCTS) {
+  // If a specific product is mentioned, show that + recommendations
+  let productsToShow = PRODUCTS;
+  let recommendations = [];
+
+  if (entities?.product_name) {
+    const product = PRODUCTS.find(p =>
+      p.name.toLowerCase().includes(entities.product_name.toLowerCase()) ||
+      p.name.includes(entities.product_name)
+    );
+    if (product) {
+      productsToShow = [product];
+      // Get smart recommendations based on product
+      if (product.id === 4) { // Winter Jacket
+        recommendations = PRODUCTS.filter(p => [8, 5].includes(p.id)); // Belt, Socks
+      } else if (product.id === 2) { // Jeans
+        recommendations = PRODUCTS.filter(p => [8, 1].includes(p.id)); // Belt, T-shirt
+      } else if (product.id === 3) { // Sneakers
+        recommendations = PRODUCTS.filter(p => [5].includes(p.id)); // Socks
+      } else if (product.id === 6) { // Leather Bag
+        recommendations = PRODUCTS.filter(p => [8].includes(p.id)); // Belt
+      }
+    }
+  } else if (message.toLowerCase().includes('رخيص') || message.toLowerCase().includes('cheap') || message.toLowerCase().includes('أقل')) {
+    // Show budget-friendly products
+    productsToShow = PRODUCTS.filter(p => p.price < 500).sort((a, b) => a.price - b.price);
+  } else if (message.toLowerCase().includes('غالي') || message.toLowerCase().includes('premium') || message.toLowerCase().includes('فاخر')) {
+    // Show premium products
+    productsToShow = PRODUCTS.filter(p => p.price >= 1000).sort((a, b) => b.price - a.price);
+  } else if (message.toLowerCase().includes('ملابس') || message.toLowerCase().includes('clothes') || message.toLowerCase().includes('shirt') || message.toLowerCase().includes('قميص')) {
+    // Show clothing
+    productsToShow = PRODUCTS.filter(p => [1, 2, 4].includes(p.id));
+  } else if (message.toLowerCase().includes('حذاء') || message.toLowerCase().includes('shoe') || message.toLowerCase().includes('shoes')) {
+    // Show footwear
+    productsToShow = PRODUCTS.filter(p => [3, 5].includes(p.id));
+  } else if (message.toLowerCase().includes('حقيبة') || message.toLowerCase().includes('bag') || message.toLowerCase().includes('bags')) {
+    // Show bags/accessories
+    productsToShow = PRODUCTS.filter(p => [6, 8, 7].includes(p.id));
+  }
+
+  // Show selected products with rich info
+  for (const product of productsToShow) {
     const caption =
-      `*${product.name}*\n` +
-      `💰 الثمن: ${formatPrice(product.price)}\n` +
-      `📏 القياسات: ${product.sizes.join(', ')}\n` +
-      `🎨 الألوان: ${product.colors.join(', ')}`;
+      `🌟 *${product.name}*\n\n` +
+      `${product.description}\n\n` +
+      `💰 الثمن: *${formatPrice(product.price)}*\n` +
+      `📏 القياسات: ${product.sizes.join(' | ')}\n` +
+      `🎨 الألوان: ${product.colors.join(' | ')}`;
     try {
       const media = await MessageMedia.fromUrl(product.image, { unsafeMime: true });
       await msg.reply(media, null, { caption });
@@ -33,7 +82,30 @@ const handleProductInfo = async (context) => {
     }
   }
 
-  return `شنو بغيتي تشري؟ 🛍️\n\nقولي سمية المنتج، القياس، واللون!`;
+  // Show recommendations if found
+  if (recommendations.length > 0) {
+    let recText = `\n\n💡 *هاد كيتطبع مزيان معها:*\n\n`;
+    for (const rec of recommendations) {
+      recText += `• *${rec.name}* - ${formatPrice(rec.price)} 💰\n`;
+    }
+
+    for (const rec of recommendations) {
+      const caption =
+        `🌟 *${rec.name}*\n\n` +
+        `${rec.description}\n\n` +
+        `💰 الثمن: *${formatPrice(rec.price)}*\n` +
+        `📏 القياسات: ${rec.sizes.join(' | ')}\n` +
+        `🎨 الألوان: ${rec.colors.join(' | ')}`;
+      try {
+        const media = await MessageMedia.fromUrl(rec.image, { unsafeMime: true });
+        await msg.reply(media, null, { caption });
+      } catch (_) {
+        await msg.reply(caption);
+      }
+    }
+  }
+
+  return `واش بغيتي تشري؟ 🛍️\n\nقولي المنتج، القياس، واللون اللي بغيتي، وأنا غادي نساعدك!`;
 };
 
 // ── Order flow helpers ────────────────────────────────────────────────────────
@@ -173,7 +245,17 @@ const handleOrderCreate = async (context) => {
     }
 
     // If not complete, use Claude's response (which asks for missing fields naturally)
-    return claudeResponse;
+    let response = claudeResponse;
+
+    // Enhance with payment method emphasis if we need payment
+    if (!hasPayment && hasItems) {
+      response += `\n\n💚 *نقترح عليك الأداء عند التسليم (كاش)* - هاد أحسن خيار:\n`;
+      response += `✅ آمن: تدفع غير إلا ما شفتي المنتج\n`;
+      response += `✅ سهل: ما كاينش بطاقات بنكية\n`;
+      response += `✅ سريع: ما كاينش مشاكل بنكية\n`;
+    }
+
+    return response;
 
   } catch (error) {
     logger.error('Error in handleOrderCreate', { conversationId, error: error.message });
@@ -226,12 +308,17 @@ const handleFAQ = async (context) => {
 };
 
 const handleComplaint = async (context) => {
-  const { conversationId, sentiment, claudeResponse } = context;
+  const { conversationId, sentiment, claudeResponse, customer } = context;
 
   // Use Claude's response which already handles the complaint naturally
   // The escalation is handled at the controller level based on sentiment
-  let response = `كنتأسف على هاد المشكلة، وبغيت نعاونك نحلوها.\n\n`;
+  let response = `😟 كنتأسف بصح على هاد المشكلة.\n\n`;
+  response += `راضي نعاونك نحلوها مباشرة، ولا إلا كانت مشكلة معقدة غادي نحيلك لفريق الدعم ديالنا.\n\n`;
   response += claudeResponse;
+
+  if (sentiment < -0.5) {
+    response += `\n\n🤝 *هاد مهم ليك:* تقدر تطلب دعم بشري في أي وقت قولي "وكيل" باش نتصل بيك مع متخصص.`;
+  }
 
   return response;
 };

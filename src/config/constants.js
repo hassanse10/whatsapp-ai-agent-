@@ -52,11 +52,14 @@ module.exports = {
   },
 
   PRODUCTS: [
-    { id: 1, name: 'Blue T-Shirt',      price: 29.99,  sizes: ['S', 'M', 'L', 'XL'],          colors: ['Blue', 'Black'],           image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&fit=crop' },
-    { id: 2, name: 'Black Jeans',       price: 79.99,  sizes: ['28', '30', '32', '34', '36'], colors: ['Black', 'Blue'],           image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=600&fit=crop' },
-    { id: 3, name: 'Sneakers',          price: 99.99,  sizes: ['6', '7', '8', '9', '10', '11', '12'], colors: ['White', 'Black', 'Red'], image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&fit=crop' },
-    { id: 4, name: 'Winter Jacket',     price: 199.99, sizes: ['S', 'M', 'L', 'XL'],          colors: ['Black', 'Brown', 'Navy'],  image: 'https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=600&fit=crop' },
-    { id: 5, name: 'Cotton Socks (Pack)', price: 14.99, sizes: ['One Size'],                  colors: ['White', 'Black', 'Gray'],  image: 'https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?w=600&fit=crop' },
+    { id: 1, name: 'قميص أزرق كلاسيكي (Blue T-Shirt)',      price: 249,  sizes: ['S', 'M', 'L', 'XL'],          colors: ['أزرق', 'أسود', 'أبيض'],           image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&fit=crop', description: 'قميص قطني 100% مريح وعملي' },
+    { id: 2, name: 'جينز أسود فاخر (Black Jeans)',       price: 799,  sizes: ['28', '30', '32', '34', '36'], colors: ['أسود', 'أزرق داكن'],           image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=600&fit=crop', description: 'جينز ستريتش عالي الجودة يدوم طويل' },
+    { id: 3, name: 'أحذية رياضية حديثة (Sneakers)',          price: 999,  sizes: ['36', '37', '38', '39', '40', '41', '42'], colors: ['أبيض', 'أسود', 'أحمر'], image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&fit=crop', description: 'أحذية مريحة مع تقنية امتصاص الصدمات' },
+    { id: 4, name: 'سترة شتوية دافئة (Winter Jacket)',     price: 1999, sizes: ['S', 'M', 'L', 'XL'],          colors: ['أسود', 'بني', 'أزرق بحري'],  image: 'https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=600&fit=crop', description: 'سترة معزولة لفصل الشتاء البارد' },
+    { id: 5, name: 'جوارب قطنية (Cotton Socks Pack)', price: 149, sizes: ['One Size'],                  colors: ['أبيض', 'أسود', 'رمادي'],  image: 'https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?w=600&fit=crop', description: 'مجموعة 6 جوارب قطن أصلي' },
+    { id: 6, name: 'حقيبة يد جلدية (Leather Bag)',     price: 1299, sizes: ['One Size'],          colors: ['بني', 'أسود'],  image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=600&fit=crop', description: 'حقيبة جلد طبيعي فاخرة وأنيقة' },
+    { id: 7, name: 'قبعة صيفية (Summer Hat)', price: 199, sizes: ['One Size'],                  colors: ['أبيض', 'بيج', 'أسود'],  image: 'https://images.unsplash.com/photo-1552328906-d77eb9f5a0cc?w=600&fit=crop', description: 'قبعة قطن خفيفة تحمي من الشمس' },
+    { id: 8, name: 'حزام جلدي أنيق (Leather Belt)', price: 299, sizes: ['S', 'M', 'L', 'XL'],          colors: ['أسود', 'بني'],  image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&fit=crop', description: 'حزام جلد حقيقي بتصميم كلاسيكي' },
   ],
 
   FAQ: {
