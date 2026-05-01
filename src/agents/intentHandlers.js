@@ -7,17 +7,11 @@ const { FAQ } = require('../config/constants');
 
 const handleGreeting = async (context) => {
   const { customer } = context;
-  let greeting = `👋 مرحبا بيك`;
+  let greeting = `مرحبا`;
   if (customer?.name) {
-    greeting += ` يا ${customer.name}`;
+    greeting += ` ${customer.name}`;
   }
-  greeting += `! 🎉\n\nكيفاش نقدر نعاونك اليوم؟\n\n`;
-  greeting += `نقدر نـ:\n`;
-  greeting += `✨ نعرضك المنتجات الديال ندينا (ملابس، أحذية، حقايب، إكسسوارات)\n`;
-  greeting += `📦 نساعدك تدير طلبية جديدة\n`;
-  greeting += `🔍 تتبعو طلبياتك القديمة\n`;
-  greeting += `💬 نجاوب على أي سؤال عندك\n\n`;
-  greeting += `شنو بغيتي؟`;
+  greeting += `! 👋\n\nشنو بغيتي؟ منتجات، طلبية جديدة، ولا تتبع؟`;
   return greeting;
 };
 
@@ -82,20 +76,13 @@ const handleProductInfo = async (context) => {
     }
   }
 
-  // Show recommendations if found
+  // Show recommendations if found (but brief)
   if (recommendations.length > 0) {
-    let recText = `\n\n💡 *هاد كيتطبع مزيان معها:*\n\n`;
-    for (const rec of recommendations) {
-      recText += `• *${rec.name}* - ${formatPrice(rec.price)} 💰\n`;
-    }
-
     for (const rec of recommendations) {
       const caption =
-        `🌟 *${rec.name}*\n\n` +
+        `*${rec.name}* - ${formatPrice(rec.price)}\n` +
         `${rec.description}\n\n` +
-        `💰 الثمن: *${formatPrice(rec.price)}*\n` +
-        `📏 القياسات: ${rec.sizes.join(' | ')}\n` +
-        `🎨 الألوان: ${rec.colors.join(' | ')}`;
+        `📏 ${rec.sizes.join(' | ')} | 🎨 ${rec.colors.join(' | ')}`;
       try {
         const media = await MessageMedia.fromUrl(rec.image, { unsafeMime: true });
         await msg.reply(media, null, { caption });
@@ -105,7 +92,7 @@ const handleProductInfo = async (context) => {
     }
   }
 
-  return `واش بغيتي تشري؟ 🛍️\n\nقولي المنتج، القياس، واللون اللي بغيتي، وأنا غادي نساعدك!`;
+  return `شنو بغيتي تشري؟ قولي المنتج و القياس والون.`;
 };
 
 // ── Order flow helpers ────────────────────────────────────────────────────────
@@ -241,7 +228,7 @@ const handleOrderCreate = async (context) => {
         await customerModel.updateCustomerName(customer.id, collectedData.name);
       }
       await conversationService.updateFlowState(conversationId, {});
-      return `✅ *تأكدات الطلبية!*\n\nرقم الطلبية ديالك: *#${order.order_number}*\n\nغادي نعالجوها ونتواصلو معاك قريباً. شكراً على ثقتك فينا! 🎉`;
+      return `✅ تأكدات! رقم الطلبية: #${order.order_number}\n\nغادي نتواصلو معاك قريباً.`;
     }
 
     // If not complete, use Claude's response (which asks for missing fields naturally)
@@ -249,17 +236,14 @@ const handleOrderCreate = async (context) => {
 
     // Enhance with payment method emphasis if we need payment
     if (!hasPayment && hasItems) {
-      response += `\n\n💚 *نقترح عليك الأداء عند التسليم (كاش)* - هاد أحسن خيار:\n`;
-      response += `✅ آمن: تدفع غير إلا ما شفتي المنتج\n`;
-      response += `✅ سهل: ما كاينش بطاقات بنكية\n`;
-      response += `✅ سريع: ما كاينش مشاكل بنكية\n`;
+      response += `\n\nعند التسليم (كاش) - أحسن خيار ✅`;
     }
 
     return response;
 
   } catch (error) {
     logger.error('Error in handleOrderCreate', { conversationId, error: error.message });
-    return `عندي مشكل تقني. عاود المحاولة أو تواصل مع الدعم.`;
+    return `عندي مشكل تقني. عاود المحاولة.`;
   }
 };
 
@@ -270,28 +254,25 @@ const handleOrderTrack = async (context) => {
   if (entities?.order_id) {
     const order = await orderService.getOrderByNumber(entities.order_id);
     if (!order) {
-      return `ما لقيتش طلبية برقم "${entities.order_id}".\n\nتحقق من الرقم مزيان أو عطيني رقم آخر. نقدر نوريك آخر طلبياتك إلا بغيتي.`;
+      return `ما لقيتش رقم "${entities.order_id}". إتفضل رقم آخر.`;
     }
     let response = orderService.formatOrderSummary(order);
     if (order.tracking_number) {
       const tracking = shippingService.trackPackage(order.tracking_number);
       response += shippingService.formatTrackingInfo(tracking);
-    } else if (order.status !== 'pending') {
-      response += '\n📦 رقم التتبع غادي يكون متاح من اللحظة اللي تتشحن فيها الطلبية.\n';
     }
     return response;
   }
 
   const recentOrders = await orderService.getCustomerOrders(customer.id, 3);
   if (recentOrders.length === 0) {
-    return `ما كاين عندك حتى طلبية حتى دابا. واش بغيتي تدير واحدة؟`;
+    return `ما كاين عندك طلبيات. بغيتي تدير واحدة؟`;
   }
 
-  let response = `📦 آخر طلبياتك:\n\n`;
+  let response = `آخر طلبياتك:\n`;
   recentOrders.forEach(order => {
-    response += `• طلبية #${order.order_number} - ${order.status} - ${formatPrice(order.total_price)}\n`;
+    response += `#${order.order_number} - ${order.status} - ${formatPrice(order.total_price)}\n`;
   });
-  response += `\nأعطيني رقم الطلبية اللي بغيتي تتبعها.`;
   return response;
 };
 
@@ -301,23 +282,20 @@ const handleFAQ = async (context) => {
 
   for (const [keyword, answer] of Object.entries(FAQ)) {
     if (message.includes(keyword)) {
-      return `❓ ${answer}\n\nواش كاين شي حاجة أخرى نقدر نعاونك بها؟`;
+      return answer;
     }
   }
   return claudeResponse;
 };
 
 const handleComplaint = async (context) => {
-  const { conversationId, sentiment, claudeResponse, customer } = context;
+  const { sentiment, claudeResponse } = context;
 
-  // Use Claude's response which already handles the complaint naturally
-  // The escalation is handled at the controller level based on sentiment
-  let response = `😟 كنتأسف بصح على هاد المشكلة.\n\n`;
-  response += `راضي نعاونك نحلوها مباشرة، ولا إلا كانت مشكلة معقدة غادي نحيلك لفريق الدعم ديالنا.\n\n`;
-  response += claudeResponse;
+  // Keep response short and direct
+  let response = `كنتأسف. شنو المشكلة بالضبط؟\n\n${claudeResponse}`;
 
   if (sentiment < -0.5) {
-    response += `\n\n🤝 *هاد مهم ليك:* تقدر تطلب دعم بشري في أي وقت قولي "وكيل" باش نتصل بيك مع متخصص.`;
+    response += `\n\nولا بغيتي نتكلم مع وكيل بشري؟`;
   }
 
   return response;
@@ -329,7 +307,7 @@ const handleEscalate = async (context) => {
     type: 'escalation',
     reason: ESCALATION_REASONS.REQUESTED_BY_CUSTOMER,
   });
-  return `كنربطك دابا مع فريق الدعم البشري ديالنا.\n\nغادي تتكلم مع متخصص يقدر يحل مشكلتك. عندهم access لتاريخ طلبياتك والمحادثة.\n\nشكراً على صبرك! 👋`;
+  return `حاضر، غادي نربطك مع وكيل بشري قريباً. 👋`;
 };
 
 const handleOther = async (context) => {
