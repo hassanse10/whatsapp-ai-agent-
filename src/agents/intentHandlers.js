@@ -20,6 +20,7 @@ const handleProductInfo = async (context) => {
   const { PRODUCTS } = require('../config/constants');
   const { MessageMedia } = require('whatsapp-web.js');
   const { formatPrice } = require('../utils/helpers');
+  const axios = require('axios');
 
   // If a specific product is mentioned, show that + recommendations
   let productsToShow = PRODUCTS;
@@ -69,9 +70,12 @@ const handleProductInfo = async (context) => {
       `📏 القياسات: ${product.sizes.join(' | ')}\n` +
       `🎨 الألوان: ${product.colors.join(' | ')}`;
     try {
-      const media = await MessageMedia.fromUrl(product.image, { unsafeMime: true });
+      // Download image as buffer first (more reliable than fromUrl)
+      const imageResponse = await axios.get(product.image, { responseType: 'arraybuffer', timeout: 5000 });
+      const media = new MessageMedia('image/jpeg', Buffer.from(imageResponse.data).toString('base64'));
       await msg.reply(media, null, { caption });
-    } catch (_) {
+    } catch (error) {
+      logger.warn('Failed to send product image', { product: product.name, error: error.message });
       await msg.reply(caption);
     }
   }
@@ -84,9 +88,12 @@ const handleProductInfo = async (context) => {
         `${rec.description}\n\n` +
         `📏 ${rec.sizes.join(' | ')} | 🎨 ${rec.colors.join(' | ')}`;
       try {
-        const media = await MessageMedia.fromUrl(rec.image, { unsafeMime: true });
+        // Download image as buffer first (more reliable than fromUrl)
+        const imageResponse = await axios.get(rec.image, { responseType: 'arraybuffer', timeout: 5000 });
+        const media = new MessageMedia('image/jpeg', Buffer.from(imageResponse.data).toString('base64'));
         await msg.reply(media, null, { caption });
-      } catch (_) {
+      } catch (error) {
+        logger.warn('Failed to send recommendation image', { product: rec.name, error: error.message });
         await msg.reply(caption);
       }
     }
