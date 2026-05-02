@@ -227,8 +227,19 @@ const handleOrderCreate = async (context) => {
     const hasPayment = !!collectedData.payment_method;
     const isComplete = hasItems && hasName && hasAddress && hasPayment;
 
-    // If all data is collected, create the order
+    // If all data is collected, show summary and ask for confirmation
     if (isComplete) {
+      // Check if customer already confirmed (message contains yes/confirm keywords)
+      const confirmKeywords = ['yes', 'أيه', 'تأكد', 'نعم', 'تمام', 'حاضر', 'ماشي', 'صحيح'];
+      const isConfirmed = confirmKeywords.some(kw => message.toLowerCase().includes(kw));
+
+      if (!isConfirmed) {
+        // Show summary and ask for confirmation
+        const summary = buildSummary(collectedData, existingItems, formatPrice, calculateOrderTotal);
+        return `${summary}\n\nكلاش صحيح؟ قول "نعم" أو "أيه" باش نأكدو الطلبية.`;
+      }
+
+      // Create the order after confirmation
       const order = await orderService.createOrder(customer.id, existingItems, collectedData.address, collectedData.payment_method);
       if (collectedData.name) {
         const customerModel = require('../models/customer');
