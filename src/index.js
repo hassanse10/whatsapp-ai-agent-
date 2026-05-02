@@ -82,6 +82,19 @@ app.post('/admin/send', async (req, res) => {
   }
 });
 
+// API Routes - Dashboard & Admin Panel
+const authRoutes = require('./routes/auth');
+const agentRoutes = require('./routes/agents');
+const productRoutes = require('./routes/products');
+const orderRoutes = require('./routes/orders');
+const dashboardRoutes = require('./routes/dashboard');
+
+app.use('/api/auth', authRoutes);
+app.use('/api/agents', agentRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 app.use((err, req, res, next) => {
   logger.error('Unhandled error', { error: err.message });

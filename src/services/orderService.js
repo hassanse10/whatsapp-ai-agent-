@@ -130,6 +130,91 @@ const findProduct = (productName) => {
   return PRODUCTS.find(p => p.name.toLowerCase().includes(lowerName)) || null;
 };
 
+// Dashboard functions for multi-tenant orders
+const getUserOrders = async (userId, limit = 50, offset = 0) => {
+  try {
+    const db = require('../config/database');
+    const result = await db.query(
+      `SELECT o.id, o.order_number, o.customer_id, o.status, o.total_price,
+              o.shipping_address, o.payment_method, o.created_at,
+              c.name as customer_name, c.phone_number
+       FROM orders o
+       LEFT JOIN customers c ON o.customer_id = c.id
+       WHERE o.user_id = $1
+       ORDER BY o.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+    return result.rows;
+  } catch (error) {
+    logger.error('Error in getUserOrders', { error: error.message });
+    throw error;
+  }
+};
+
+const getOrderStats = async (userId) => {
+  try {
+    const db = require('../config/database');
+    const result = await db.query(
+      `SELECT
+        COUNT(*) as total_orders,
+        COALESCE(SUM(total_price), 0)::FLOAT as total_revenue,
+        COUNT(DISTINCT customer_id) as unique_customers,
+        COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
+        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders
+       FROM orders
+       WHERE user_id = $1`,
+      [userId]
+    );
+    return result.rows[0] || {};
+  } catch (error) {
+    logger.error('Error in getOrderStats', { error: error.message });
+    throw error;
+  }
+};
+
+const getRecentOrders = async (userId, limit = 10) => {
+  try {
+    const db = require('../config/database');
+    const result = await db.query(
+      `SELECT o.id, o.order_number, o.status, o.total_price, o.created_at,
+              c.name as customer_name
+       FROM orders o
+       LEFT JOIN customers c ON o.customer_id = c.id
+       WHERE o.user_id = $1
+       ORDER BY o.created_at DESC
+       LIMIT $2`,
+      [userId, limit]
+    );
+    return result.rows;
+  } catch (error) {
+    logger.error('Error in getRecentOrders', { error: error.message });
+    throw error;
+  }
+};
+
+const getTopProducts = async (userId, limit = 5) => {
+  try {
+    const db = require('../config/database');
+    const result = await db.query(
+      `SELECT oi.product_name, COUNT(*) as order_count,
+              SUM(oi.quantity) as total_quantity,
+              AVG(oi.price)::FLOAT as avg_price
+       FROM order_items oi
+       JOIN orders o ON oi.order_id = o.id
+       WHERE o.user_id = $1
+       GROUP BY oi.product_name
+       ORDER BY order_count DESC
+       LIMIT $2`,
+      [userId, limit]
+    );
+    return result.rows;
+  } catch (error) {
+    logger.error('Error in getTopProducts', { error: error.message });
+    throw error;
+  }
+};
+
 module.exports = {
   createOrder,
   getOrderDetails,
@@ -139,4 +224,8 @@ module.exports = {
   formatOrderSummary,
   validateOrderItems,
   findProduct,
+  getUserOrders,
+  getOrderStats,
+  getRecentOrders,
+  getTopProducts,
 };
