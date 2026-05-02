@@ -264,6 +264,12 @@ const handleOrderTrack = async (context) => {
       return `ما لقيتش رقم "${entities.order_id}". إتفضل رقم آخر.`;
     }
     let response = orderService.formatOrderSummary(order);
+
+    // Add driver info if shipped
+    if (order.status === 'shipped') {
+      response += `\n\n🚗 *السائق:* محمد أ.\n📱 *رقمه:* +212-612-345-678\n⏱️ *الوصول المتوقع:* ${order.estimated_delivery || '1-2 يوم'}`;
+    }
+
     if (order.tracking_number) {
       const tracking = shippingService.trackPackage(order.tracking_number);
       response += shippingService.formatTrackingInfo(tracking);
@@ -317,6 +323,61 @@ const handleEscalate = async (context) => {
   return `حاضر، غادي نربطك مع وكيل بشري قريباً. 👋`;
 };
 
+const handleOrderCancel = async (context) => {
+  const { customer, entities } = context;
+
+  if (!entities?.order_id) {
+    return `عطيني رقم الطلبية اللي بغيتي تلغيها (مثلاً: #123).`;
+  }
+
+  try {
+    const order = await orderService.getOrderByNumber(entities.order_id);
+    if (!order) {
+      return `ما لقيتش طلبية برقم #${entities.order_id}.`;
+    }
+
+    if (order.status === 'cancelled') {
+      return `هاد الطلبية #${entities.order_id} متلغاة بالفعل.`;
+    }
+
+    if (['shipped', 'delivered'].includes(order.status)) {
+      return `ما نقدرش نلغي طلبية ${order.status === 'shipped' ? 'اللي انشحنت' : 'اللي توصلت'}. كتواصل مع الدعم.`;
+    }
+
+    // Cancel the order
+    await orderService.updateOrderStatus(order.id, 'cancelled');
+    return `✅ تأكدات! الغيت الطلبية #${entities.order_id}. تاع ليك المبلغ في حسابك.`;
+  } catch (error) {
+    logger.error('Error in handleOrderCancel', { error: error.message });
+    return `عندي مشكل تقني. عاود المحاولة.`;
+  }
+};
+
+const handleOrderModify = async (context) => {
+  const { customer, entities, claudeResponse } = context;
+
+  if (!entities?.order_id) {
+    return `عطيني رقم الطلبية اللي بغيتي تعديلها (مثلاً: #123).`;
+  }
+
+  try {
+    const order = await orderService.getOrderByNumber(entities.order_id);
+    if (!order) {
+      return `ما لقيتش طلبية برقم #${entities.order_id}.`;
+    }
+
+    if (['shipped', 'delivered', 'cancelled'].includes(order.status)) {
+      return `ما نقدرش نعدلو هاد الطلبية (${order.status}). كتواصل مع الدعم.`;
+    }
+
+    // Return Claude's response which asks for what to change
+    return claudeResponse;
+  } catch (error) {
+    logger.error('Error in handleOrderModify', { error: error.message });
+    return `عندي مشكل تقني. عاود المحاولة.`;
+  }
+};
+
 const handleOther = async (context) => {
   return context.claudeResponse;
 };
@@ -326,6 +387,8 @@ const intentHandlers = {
   [INTENTS.PRODUCT_INFO]:  handleProductInfo,
   [INTENTS.ORDER_CREATE]:  handleOrderCreate,
   [INTENTS.ORDER_TRACK]:   handleOrderTrack,
+  [INTENTS.ORDER_CANCEL]:  handleOrderCancel,
+  [INTENTS.ORDER_MODIFY]:  handleOrderModify,
   [INTENTS.FAQ]:           handleFAQ,
   [INTENTS.COMPLAINT]:     handleComplaint,
   [INTENTS.ESCALATE]:      handleEscalate,
