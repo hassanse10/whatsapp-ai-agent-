@@ -1,108 +1,9 @@
 const logger = require('../utils/logger');
-const { INTENTS, ESCALATION_REASONS } = require('../config/constants');
+const { INTENTS, ESCALATION_REASONS, FAQ } = require('../config/constants');
 const orderService = require('../services/orderService');
 const shippingService = require('../services/shippingService');
 const conversationService = require('../services/conversationService');
-const { FAQ } = require('../config/constants');
-
-const handleGreeting = async (context) => {
-  const { customer } = context;
-  let greeting = `مرحبا`;
-  if (customer?.name) {
-    greeting += ` ${customer.name}`;
-  }
-  greeting += `! 👋\n\nشنو بغيتي؟ منتجات، طلبية جديدة، ولا تتبع؟`;
-  return greeting;
-};
-
-const handleProductInfo = async (context) => {
-  const { msg, message, entities } = context;
-  const { PRODUCTS } = require('../config/constants');
-  const { MessageMedia } = require('whatsapp-web.js');
-  const { formatPrice } = require('../utils/helpers');
-  const axios = require('axios');
-
-  // If a specific product is mentioned, show that + recommendations
-  let productsToShow = PRODUCTS;
-  let recommendations = [];
-
-  if (entities?.product_name) {
-    const product = PRODUCTS.find(p =>
-      p.name.toLowerCase().includes(entities.product_name.toLowerCase()) ||
-      p.name.includes(entities.product_name)
-    );
-    if (product) {
-      productsToShow = [product];
-      // Get smart recommendations based on product
-      if (product.id === 4) { // Winter Jacket
-        recommendations = PRODUCTS.filter(p => [8, 5].includes(p.id)); // Belt, Socks
-      } else if (product.id === 2) { // Jeans
-        recommendations = PRODUCTS.filter(p => [8, 1].includes(p.id)); // Belt, T-shirt
-      } else if (product.id === 3) { // Sneakers
-        recommendations = PRODUCTS.filter(p => [5].includes(p.id)); // Socks
-      } else if (product.id === 6) { // Leather Bag
-        recommendations = PRODUCTS.filter(p => [8].includes(p.id)); // Belt
-      }
-    }
-  } else if (message.toLowerCase().includes('رخيص') || message.toLowerCase().includes('cheap') || message.toLowerCase().includes('أقل')) {
-    // Show budget-friendly products
-    productsToShow = PRODUCTS.filter(p => p.price < 500).sort((a, b) => a.price - b.price);
-  } else if (message.toLowerCase().includes('غالي') || message.toLowerCase().includes('premium') || message.toLowerCase().includes('فاخر')) {
-    // Show premium products
-    productsToShow = PRODUCTS.filter(p => p.price >= 1000).sort((a, b) => b.price - a.price);
-  } else if (message.toLowerCase().includes('ملابس') || message.toLowerCase().includes('clothes') || message.toLowerCase().includes('shirt') || message.toLowerCase().includes('قميص')) {
-    // Show clothing
-    productsToShow = PRODUCTS.filter(p => [1, 2, 4].includes(p.id));
-  } else if (message.toLowerCase().includes('حذاء') || message.toLowerCase().includes('shoe') || message.toLowerCase().includes('shoes')) {
-    // Show footwear
-    productsToShow = PRODUCTS.filter(p => [3, 5].includes(p.id));
-  } else if (message.toLowerCase().includes('حقيبة') || message.toLowerCase().includes('bag') || message.toLowerCase().includes('bags')) {
-    // Show bags/accessories
-    productsToShow = PRODUCTS.filter(p => [6, 8, 7].includes(p.id));
-  }
-
-  // Show selected products with rich info
-  for (const product of productsToShow) {
-    const caption =
-      `🌟 *${product.name}*\n\n` +
-      `${product.description}\n\n` +
-      `💰 الثمن: *${formatPrice(product.price)}*\n` +
-      `📏 القياسات: ${product.sizes.join(' | ')}\n` +
-      `🎨 الألوان: ${product.colors.join(' | ')}`;
-    try {
-      // Download image as buffer first (more reliable than fromUrl)
-      const imageResponse = await axios.get(product.image, { responseType: 'arraybuffer', timeout: 5000 });
-      const media = new MessageMedia('image/jpeg', Buffer.from(imageResponse.data).toString('base64'));
-      await msg.reply(media, null, { caption });
-    } catch (error) {
-      logger.warn('Failed to send product image', { product: product.name, error: error.message });
-      await msg.reply(caption);
-    }
-  }
-
-  // Show recommendations if found (but brief)
-  if (recommendations.length > 0) {
-    for (const rec of recommendations) {
-      const caption =
-        `*${rec.name}* - ${formatPrice(rec.price)}\n` +
-        `${rec.description}\n\n` +
-        `📏 ${rec.sizes.join(' | ')} | 🎨 ${rec.colors.join(' | ')}`;
-      try {
-        // Download image as buffer first (more reliable than fromUrl)
-        const imageResponse = await axios.get(rec.image, { responseType: 'arraybuffer', timeout: 5000 });
-        const media = new MessageMedia('image/jpeg', Buffer.from(imageResponse.data).toString('base64'));
-        await msg.reply(media, null, { caption });
-      } catch (error) {
-        logger.warn('Failed to send recommendation image', { product: rec.name, error: error.message });
-        await msg.reply(caption);
-      }
-    }
-  }
-
-  return `شنو بغيتي تشري؟ قولي المنتج و القياس والون.`;
-};
-
-// ── Order flow helpers ────────────────────────────────────────────────────────
+const { broadcastToUser } = require('../services/whatsappSessionManager');
 
 const PAYMENT_LABELS = {
   cash_on_delivery: '💵 الأداء عند التسليم',
@@ -110,14 +11,11 @@ const PAYMENT_LABELS = {
   paypal:           '🅿️ PayPal',
 };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 const isValidName = (str) => {
   const s = str.trim();
-  // At least 2 words, letters (Latin + Arabic) only, min 4 chars
-  return (
-    s.length >= 4 &&
-    /^[a-zA-ZÀ-ÿ؀-ۿ\s'\-]+$/.test(s) &&
-    s.split(/\s+/).filter(Boolean).length >= 2
-  );
+  return s.length >= 4 && /^[a-zA-ZÀ-ÿ؀-ۿ\s'\-]+$/.test(s) && s.split(/\s+/).filter(Boolean).length >= 2;
 };
 
 const isValidAddress = (str) => {
@@ -128,45 +26,14 @@ const isValidAddress = (str) => {
 const parsePayment = (text, PAYMENT_METHODS) => {
   const t = text.toLowerCase();
   if (t === '1' || t.includes('cash') || t.includes('cod') || t.includes('delivery') ||
-      t.includes('نقدي') || t.includes('تسليم') || t.includes('كاش')) {
+      t.includes('نقدي') || t.includes('تسليم') || t.includes('كاش'))
     return PAYMENT_METHODS.CASH_ON_DELIVERY;
-  }
   if (t === '2' || t.includes('credit') || t.includes('card') ||
-      t.includes('بطاقة') || t.includes('كريدي') || t.includes('بنكية')) {
+      t.includes('بطاقة') || t.includes('كريدي') || t.includes('بنكية'))
     return PAYMENT_METHODS.CREDIT_CARD;
-  }
-  if (t === '3' || t.includes('paypal') || t.includes('باي بال') || t.includes('بايبال')) {
+  if (t === '3' || t.includes('paypal') || t.includes('باي بال') || t.includes('بايبال'))
     return PAYMENT_METHODS.PAYPAL;
-  }
   return null;
-};
-
-const detectChangeRequest = (message) => {
-  const lower = message.toLowerCase();
-  const triggers = [
-    'change', 'edit', 'update', 'fix', 'wrong', 'correct', 'modify', 'mistake',
-    'بدل', 'صحح', 'غير', 'عدل', 'خطأ', 'غلط', 'بدّل',
-  ];
-  if (!triggers.some(t => lower.includes(t))) return null;
-
-  let field = null;
-  if (lower.includes('name') || lower.includes('الاسم') || lower.includes('سميتي') || lower.includes('سمية') || lower.includes('اسمي')) {
-    field = 'name';
-  } else if (lower.includes('address') || lower.includes('location') || lower.includes('street') ||
-             lower.includes('العنوان') || lower.includes('عنواني') || lower.includes('التوصيل')) {
-    field = 'address';
-  } else if (lower.includes('payment') || lower.includes('pay') || lower.includes('method') ||
-             lower.includes('الأداء') || lower.includes('الدفع') || lower.includes('طريقة')) {
-    field = 'payment';
-  } else if (lower.includes('item') || lower.includes('product') || lower.includes('cart') ||
-             lower.includes('المنتج') || lower.includes('الكارطة') || lower.includes('الطلبية')) {
-    field = 'items';
-  }
-  if (!field) return null;
-
-  const toMatch = message.match(/\bto\s+(.+)$/i) || message.match(/(?:إلى|ل|بـ)\s+(.+)$/);
-  const newValue = toMatch ? toMatch[1].trim() : null;
-  return { field, newValue };
 };
 
 const buildSummary = (flowState, orderDraft, formatPrice, calculateOrderTotal) => {
@@ -176,41 +43,156 @@ const buildSummary = (flowState, orderDraft, formatPrice, calculateOrderTotal) =
     s += `• ${item.quantity}x ${item.product_name} (${item.size} / ${item.color}) — ${formatPrice(item.price * item.quantity)}\n`;
   });
   s += `\n💰 *المجموع:* ${formatPrice(total)}\n`;
-  if (flowState.customerName)    s += `👤 *الاسم:* ${flowState.customerName}\n`;
-  if (flowState.shippingAddress) s += `📍 *العنوان:* ${flowState.shippingAddress}\n`;
-  if (flowState.paymentMethod)   s += `💳 *طريقة الأداء:* ${PAYMENT_LABELS[flowState.paymentMethod]}\n`;
+  if (flowState.name)           s += `👤 *الاسم:* ${flowState.name}\n`;
+  if (flowState.address)        s += `📍 *العنوان:* ${flowState.address}\n`;
+  if (flowState.payment_method) s += `💳 *طريقة الأداء:* ${PAYMENT_LABELS[flowState.payment_method]}\n`;
   return s;
 };
 
-// ── Main handler ──────────────────────────────────────────────────────────────
+// Build the formatted receipt sent to customer after order creation
+const buildReceipt = (order, items, collectedData, formatPrice, calculateOrderTotal) => {
+  const total = calculateOrderTotal(items);
+  const paymentLabel = PAYMENT_LABELS[collectedData.payment_method] || collectedData.payment_method;
 
+  let msg = `✅ *تأكيد الطلبية*\n`;
+  msg += `━━━━━━━━━━━━━━━━━━\n`;
+  msg += `🔖 *رقم الطلبية:* #${order.order_number}\n\n`;
+  msg += `🛒 *المنتجات:*\n`;
+  items.forEach((item, i) => {
+    msg += `${i + 1}. *${item.product_name}*\n`;
+    msg += `   الكمية: ${item.quantity}`;
+    if (item.size)  msg += ` | القياس: ${item.size}`;
+    if (item.color) msg += ` | اللون: ${item.color}`;
+    msg += `\n   السعر: ${formatPrice(item.price * item.quantity)}\n`;
+  });
+  msg += `\n💰 *المجموع: ${formatPrice(total)}*\n`;
+  msg += `━━━━━━━━━━━━━━━━━━\n`;
+  if (collectedData.name)     msg += `👤 *الاسم:* ${collectedData.name}\n`;
+  if (collectedData.address)  msg += `📍 *العنوان:* ${collectedData.address}\n`;
+  msg += `💳 *طريقة الأداء:* ${paymentLabel}\n`;
+  msg += `━━━━━━━━━━━━━━━━━━\n`;
+  msg += `📦 الطلبية غادي توصلك خلال 3-5 أيام عمل.\n`;
+  msg += `شكراً على ثقتك فينا! 🙏`;
+  return msg;
+};
+
+// ── Intent handlers ───────────────────────────────────────────────────────────
+
+const handleGreeting = async (context) => {
+  const { customer } = context;
+  let greeting = `مرحبا`;
+  if (customer?.name) greeting += ` ${customer.name}`;
+  greeting += `! 👋\n\nشنو بغيتي؟ منتجات، طلبية جديدة، ولا تتبع؟`;
+  return greeting;
+};
+
+// Shared image-sending logic used by both PRODUCT_INFO and SHOW_PRODUCT
+const sendProductCards = async (productsToShow, msg) => {
+  const { MessageMedia } = require('whatsapp-web.js');
+  const axios = require('axios');
+
+  const joinField = (val) => {
+    if (!val) return 'N/A';
+    return Array.isArray(val) ? val.join(' | ') : String(val);
+  };
+  const fmt = (price) => {
+    const n = parseFloat(price);
+    return isNaN(n) ? String(price) : `${n.toFixed(2)} MAD`;
+  };
+
+  for (const product of productsToShow) {
+    const caption =
+      `🛍️ *${product.name}*\n\n` +
+      (product.description ? `${product.description}\n\n` : '') +
+      `💰 الثمن: *${fmt(product.price)}*\n` +
+      `📏 القياسات: ${joinField(product.sizes)}\n` +
+      `🎨 الألوان: ${joinField(product.colors)}` +
+      (product.stock_quantity > 0 ? `\n✅ متوفر: ${product.stock_quantity} قطعة` : '');
+
+    const imageUrl = product.image_url || product.image || null;
+    if (imageUrl) {
+      try {
+        const imgRes = await axios.get(imageUrl, {
+          responseType: 'arraybuffer', timeout: 8000,
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+        });
+        const mimeType = (imgRes.headers['content-type'] || 'image/jpeg').split(';')[0];
+        const media = new MessageMedia(mimeType, Buffer.from(imgRes.data).toString('base64'));
+        await msg.reply(media, null, { caption });
+        continue;
+      } catch (err) {
+        logger.warn('Image download failed, sending text card', { product: product.name, error: err.message });
+      }
+    }
+    await msg.reply(caption);
+  }
+};
+
+const handleProductInfo = async (context) => {
+  const { msg, message, entities, products: dbProducts } = context;
+  const { PRODUCTS: hardcodedProducts } = require('../config/constants');
+  const allProducts = (dbProducts && dbProducts.length > 0) ? dbProducts : hardcodedProducts;
+
+  if (allProducts.length === 0) return `ماكاينش منتجات متاحة دابا. عاود لاحقاً!`;
+
+  let productsToShow = allProducts;
+  if (entities?.product_name) {
+    const found = allProducts.find(p => p.name.toLowerCase().includes(entities.product_name.toLowerCase()));
+    if (found) productsToShow = [found];
+  } else if (message.toLowerCase().includes('رخيص') || message.toLowerCase().includes('cheap')) {
+    productsToShow = [...allProducts].sort((a, b) => parseFloat(a.price) - parseFloat(b.price)).slice(0, 3);
+  } else if (message.toLowerCase().includes('غالي') || message.toLowerCase().includes('premium')) {
+    productsToShow = [...allProducts].sort((a, b) => parseFloat(b.price) - parseFloat(a.price)).slice(0, 3);
+  }
+
+  await sendProductCards(productsToShow, msg);
+  return null;
+};
+
+// SHOW_PRODUCT: explicit image request — "زريني صور", "send photos", "طلب صور"
+const handleShowProduct = async (context) => {
+  const { msg, entities, products: dbProducts } = context;
+  const { PRODUCTS: hardcodedProducts } = require('../config/constants');
+  const allProducts = (dbProducts && dbProducts.length > 0) ? dbProducts : hardcodedProducts;
+
+  if (allProducts.length === 0) return `ماكاينش منتجات متاحة دابا.`;
+
+  let productsToShow = allProducts;
+  if (entities?.product_name) {
+    const found = allProducts.find(p => p.name.toLowerCase().includes(entities.product_name.toLowerCase()));
+    if (found) productsToShow = [found];
+  }
+
+  await sendProductCards(productsToShow, msg);
+  return null;
+};
+
+// ORDER_CREATE: collects order details step by step
 const handleOrderCreate = async (context) => {
-  const { conversationId, customer, entities, missing_fields, claudeResponse, message } = context;
+  const { conversationId, customer, entities, claudeResponse, message, products: dbProducts, userId } = context;
   const { formatPrice, calculateOrderTotal } = require('../utils/helpers');
   const { PAYMENT_METHODS } = require('../config/constants');
 
-  // Get current order data from conversation history
   const flowState = await conversationService.getFlowState(conversationId) || {};
   const existingItems = flowState.items || [];
 
   try {
-    // If we have a product_name entity, add it to the order
     if (entities?.product_name) {
-      const product = orderService.findProduct(entities.product_name);
+      const product = orderService.findProduct(entities.product_name, dbProducts);
       if (product) {
         const quantity = entities.quantity || 1;
-        const size = entities.size || product.sizes[0];
-        const color = entities.color || product.colors[0];
-        const newItem = { product_name: product.name, quantity, size, color, price: product.price };
-
-        // Add item if it doesn't already exist
+        const sizes = Array.isArray(product.sizes) ? product.sizes : [];
+        const colors = Array.isArray(product.colors) ? product.colors : [];
+        const size = entities.size || sizes[0] || '';
+        const color = entities.color || colors[0] || '';
+        const price = parseFloat(product.price) || 0;
+        const newItem = { product_name: product.name, quantity, size, color, price };
         if (!existingItems.some(i => i.product_name === product.name && i.size === size && i.color === color)) {
           existingItems.push(newItem);
         }
       }
     }
 
-    // Update flow state with collected data
     const collectedData = {
       items: existingItems,
       name: entities?.name || flowState.name,
@@ -220,48 +202,83 @@ const handleOrderCreate = async (context) => {
 
     await conversationService.updateFlowState(conversationId, collectedData);
 
-    // Check if all required fields are collected
-    const hasItems = existingItems.length > 0;
-    const hasName = !!collectedData.name && isValidName(collectedData.name);
+    const hasItems   = existingItems.length > 0;
+    const hasName    = !!collectedData.name && isValidName(collectedData.name);
     const hasAddress = !!collectedData.address && isValidAddress(collectedData.address);
     const hasPayment = !!collectedData.payment_method;
     const isComplete = hasItems && hasName && hasAddress && hasPayment;
 
-    // If all data is collected, show summary and ask for confirmation
     if (isComplete) {
-      // Check if customer already confirmed (message contains yes/confirm keywords)
-      const confirmKeywords = ['yes', 'أيه', 'تأكد', 'نعم', 'تمام', 'حاضر', 'ماشي', 'صحيح'];
-      const isConfirmed = confirmKeywords.some(kw => message.toLowerCase().includes(kw));
-
-      if (!isConfirmed) {
-        // Show summary and ask for confirmation
-        const summary = buildSummary(collectedData, existingItems, formatPrice, calculateOrderTotal);
-        return `${summary}\n\nكلاش صحيح؟ قول "نعم" أو "أيه" باش نأكدو الطلبية.`;
-      }
-
-      // Create the order after confirmation
-      const order = await orderService.createOrder(customer.id, existingItems, collectedData.address, collectedData.payment_method);
-      if (collectedData.name) {
-        const customerModel = require('../models/customer');
-        await customerModel.updateCustomerName(customer.id, collectedData.name);
-      }
-      await conversationService.updateFlowState(conversationId, {});
-      return `✅ تأكدات! رقم الطلبية: #${order.order_number}\n\nغادي نتواصلو معاك قريباً.`;
+      // All info collected — show summary and wait for CONFIRM_ORDER intent
+      const summary = buildSummary(collectedData, existingItems, formatPrice, calculateOrderTotal);
+      return `${summary}\n\nكلاش صحيح؟ قول "نعم" أو "أيه" باش نأكدو الطلبية.`;
     }
 
-    // If not complete, use Claude's response (which asks for missing fields naturally)
     let response = claudeResponse;
-
-    // Enhance with payment method emphasis if we need payment
-    if (!hasPayment && hasItems) {
-      response += `\n\nعند التسليم (كاش) - أحسن خيار ✅`;
-    }
-
+    if (!hasPayment && hasItems) response += `\n\nعند التسليم (كاش) - أحسن خيار ✅`;
     return response;
-
   } catch (error) {
     logger.error('Error in handleOrderCreate', { conversationId, error: error.message });
     return `عندي مشكل تقني. عاود المحاولة.`;
+  }
+};
+
+// CONFIRM_ORDER: customer confirmed — create order immediately + emit SSE
+const handleConfirmOrder = async (context) => {
+  const { conversationId, customer, products: dbProducts, userId } = context;
+  const { formatPrice, calculateOrderTotal } = require('../utils/helpers');
+
+  const flowState = await conversationService.getFlowState(conversationId) || {};
+  const existingItems = flowState.items || [];
+
+  if (existingItems.length === 0) {
+    return `ما كاينش طلبية لتأكيدها. بغيتي تبدأ طلبية جديدة؟`;
+  }
+
+  const collectedData = {
+    name: flowState.name,
+    address: flowState.address,
+    payment_method: flowState.payment_method,
+  };
+
+  if (!collectedData.address || !collectedData.payment_method) {
+    return `خاصنا نكملو المعلومات أولاً. عطيني ${!collectedData.address ? 'العنوان' : 'طريقة الأداء'}.`;
+  }
+
+  try {
+    const order = await orderService.createOrder(
+      customer.id, existingItems, collectedData.address, collectedData.payment_method, userId
+    );
+
+    if (collectedData.name) {
+      const customerModel = require('../models/customer');
+      await customerModel.updateCustomerName(customer.id, collectedData.name);
+    }
+
+    // Clear the order draft from conversation state
+    await conversationService.updateFlowState(conversationId, {});
+
+    // Broadcast new order to dashboard in real-time
+    if (userId) {
+      broadcastToUser(userId, {
+        type: 'new_order',
+        order: {
+          id: order.id,
+          order_number: order.order_number,
+          status: order.status,
+          total_price: parseFloat(order.total_price),
+          customer_name: collectedData.name || customer.phone_number,
+          created_at: order.created_at,
+        },
+      });
+    }
+
+    logger.info('Order created and broadcast to dashboard', { orderId: order.id, userId });
+
+    return buildReceipt(order, existingItems, collectedData, formatPrice, calculateOrderTotal);
+  } catch (error) {
+    logger.error('Error in handleConfirmOrder', { conversationId, error: error.message });
+    return `عندي مشكل تقني في إنشاء الطلبية. عاود المحاولة.`;
   }
 };
 
@@ -271,16 +288,12 @@ const handleOrderTrack = async (context) => {
 
   if (entities?.order_id) {
     const order = await orderService.getOrderByNumber(entities.order_id);
-    if (!order) {
-      return `ما لقيتش رقم "${entities.order_id}". إتفضل رقم آخر.`;
-    }
-    let response = orderService.formatOrderSummary(order);
+    if (!order) return `ما لقيتش رقم "${entities.order_id}". إتفضل رقم آخر.`;
 
-    // Add driver info if shipped
+    let response = orderService.formatOrderSummary(order);
     if (order.status === 'shipped') {
       response += `\n\n🚗 *السائق:* محمد أ.\n📱 *رقمه:* +212-612-345-678\n⏱️ *الوصول المتوقع:* ${order.estimated_delivery || '1-2 يوم'}`;
     }
-
     if (order.tracking_number) {
       const tracking = shippingService.trackPackage(order.tracking_number);
       response += shippingService.formatTrackingInfo(tracking);
@@ -289,9 +302,7 @@ const handleOrderTrack = async (context) => {
   }
 
   const recentOrders = await orderService.getCustomerOrders(customer.id, 3);
-  if (recentOrders.length === 0) {
-    return `ما كاين عندك طلبيات. بغيتي تدير واحدة؟`;
-  }
+  if (recentOrders.length === 0) return `ما كاين عندك طلبيات. بغيتي تدير واحدة؟`;
 
   let response = `آخر طلبياتك:\n`;
   recentOrders.forEach(order => {
@@ -301,27 +312,17 @@ const handleOrderTrack = async (context) => {
 };
 
 const handleFAQ = async (context) => {
-  const { claudeResponse } = context;
   const message = context.message.toLowerCase();
-
   for (const [keyword, answer] of Object.entries(FAQ)) {
-    if (message.includes(keyword)) {
-      return answer;
-    }
+    if (message.includes(keyword)) return answer;
   }
-  return claudeResponse;
+  return context.claudeResponse;
 };
 
 const handleComplaint = async (context) => {
   const { sentiment, claudeResponse } = context;
-
-  // Keep response short and direct
   let response = `كنتأسف. شنو المشكلة بالضبط؟\n\n${claudeResponse}`;
-
-  if (sentiment < -0.5) {
-    response += `\n\nولا بغيتي نتكلم مع وكيل بشري؟`;
-  }
-
+  if (sentiment < -0.5) response += `\n\nولا بغيتي نتكلم مع وكيل بشري؟`;
   return response;
 };
 
@@ -335,29 +336,17 @@ const handleEscalate = async (context) => {
 };
 
 const handleOrderCancel = async (context) => {
-  const { customer, entities } = context;
-
-  if (!entities?.order_id) {
-    return `عطيني رقم الطلبية اللي بغيتي تلغيها (مثلاً: #123).`;
-  }
+  const { entities } = context;
+  if (!entities?.order_id) return `عطيني رقم الطلبية اللي بغيتي تلغيها (مثلاً: #123).`;
 
   try {
     const order = await orderService.getOrderByNumber(entities.order_id);
-    if (!order) {
-      return `ما لقيتش طلبية برقم #${entities.order_id}.`;
-    }
-
-    if (order.status === 'cancelled') {
-      return `هاد الطلبية #${entities.order_id} متلغاة بالفعل.`;
-    }
-
-    if (['shipped', 'delivered'].includes(order.status)) {
+    if (!order) return `ما لقيتش طلبية برقم #${entities.order_id}.`;
+    if (order.status === 'cancelled') return `هاد الطلبية #${entities.order_id} متلغاة بالفعل.`;
+    if (['shipped', 'delivered'].includes(order.status))
       return `ما نقدرش نلغي طلبية ${order.status === 'shipped' ? 'اللي انشحنت' : 'اللي توصلت'}. كتواصل مع الدعم.`;
-    }
-
-    // Cancel the order
     await orderService.updateOrderStatus(order.id, 'cancelled');
-    return `✅ تأكدات! الغيت الطلبية #${entities.order_id}. تاع ليك المبلغ في حسابك.`;
+    return `✅ تأكدات! الغيت الطلبية #${entities.order_id}.`;
   } catch (error) {
     logger.error('Error in handleOrderCancel', { error: error.message });
     return `عندي مشكل تقني. عاود المحاولة.`;
@@ -365,23 +354,14 @@ const handleOrderCancel = async (context) => {
 };
 
 const handleOrderModify = async (context) => {
-  const { customer, entities, claudeResponse } = context;
-
-  if (!entities?.order_id) {
-    return `عطيني رقم الطلبية اللي بغيتي تعديلها (مثلاً: #123).`;
-  }
+  const { entities, claudeResponse } = context;
+  if (!entities?.order_id) return `عطيني رقم الطلبية اللي بغيتي تعديلها (مثلاً: #123).`;
 
   try {
     const order = await orderService.getOrderByNumber(entities.order_id);
-    if (!order) {
-      return `ما لقيتش طلبية برقم #${entities.order_id}.`;
-    }
-
-    if (['shipped', 'delivered', 'cancelled'].includes(order.status)) {
+    if (!order) return `ما لقيتش طلبية برقم #${entities.order_id}.`;
+    if (['shipped', 'delivered', 'cancelled'].includes(order.status))
       return `ما نقدرش نعدلو هاد الطلبية (${order.status}). كتواصل مع الدعم.`;
-    }
-
-    // Return Claude's response which asks for what to change
     return claudeResponse;
   } catch (error) {
     logger.error('Error in handleOrderModify', { error: error.message });
@@ -389,14 +369,16 @@ const handleOrderModify = async (context) => {
   }
 };
 
-const handleOther = async (context) => {
-  return context.claudeResponse;
-};
+const handleOther = async (context) => context.claudeResponse;
+
+// ── Router ────────────────────────────────────────────────────────────────────
 
 const intentHandlers = {
   [INTENTS.GREETING]:      handleGreeting,
   [INTENTS.PRODUCT_INFO]:  handleProductInfo,
+  SHOW_PRODUCT:            handleShowProduct,
   [INTENTS.ORDER_CREATE]:  handleOrderCreate,
+  CONFIRM_ORDER:           handleConfirmOrder,
   [INTENTS.ORDER_TRACK]:   handleOrderTrack,
   [INTENTS.ORDER_CANCEL]:  handleOrderCancel,
   [INTENTS.ORDER_MODIFY]:  handleOrderModify,
