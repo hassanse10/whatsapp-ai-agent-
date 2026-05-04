@@ -1,11 +1,11 @@
 const db = require('../config/database');
 const logger = require('../utils/logger');
 
-const getOrCreateCustomer = async (phoneNumber, name = null) => {
+const getOrCreateCustomer = async (phoneNumber, userId) => {
   try {
     const result = await db.query(
-      'SELECT * FROM customers WHERE phone_number = $1',
-      [phoneNumber]
+      'SELECT * FROM customers WHERE phone_number = $1 AND user_id = $2',
+      [phoneNumber, userId]
     );
 
     if (result.rows.length > 0) {
@@ -13,14 +13,14 @@ const getOrCreateCustomer = async (phoneNumber, name = null) => {
     }
 
     const newCustomer = await db.query(
-      'INSERT INTO customers (phone_number, name) VALUES ($1, $2) RETURNING *',
-      [phoneNumber, name]
+      'INSERT INTO customers (phone_number, user_id) VALUES ($1, $2) RETURNING *',
+      [phoneNumber, userId]
     );
 
-    logger.info(`New customer created: ${phoneNumber}`);
+    logger.info(`New customer created: ${phoneNumber} for user ${userId}`);
     return newCustomer.rows[0];
   } catch (error) {
-    logger.error('Error in getOrCreateCustomer', { phoneNumber, error });
+    logger.error('Error in getOrCreateCustomer', { phoneNumber, userId, error });
     throw error;
   }
 };
