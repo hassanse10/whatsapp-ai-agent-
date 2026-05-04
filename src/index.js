@@ -65,7 +65,7 @@ app.get('/health', async (req, res) => {
   res.status(dbOk ? 200 : 503).json({
     status: dbOk ? 'ok' : 'degraded',
     database: dbOk ? 'connected' : 'disconnected',
-    activeSessions: require('./services/whatsappSessionManager').sessions?.size || 0,
+    activeSessions: sessionManager.getSessionCount(),
     timestamp: new Date().toISOString(),
   });
 });
