@@ -1,16 +1,16 @@
 const db = require('../config/database');
 const logger = require('../utils/logger');
 
-const createConversation = async (customerId, flowState = {}) => {
+const createConversation = async (customerId, userId) => {
   try {
     const result = await db.query(
-      'INSERT INTO conversations (customer_id, flow_state) VALUES ($1, $2) RETURNING *',
-      [customerId, JSON.stringify(flowState)]
+      'INSERT INTO conversations (customer_id, user_id, flow_state) VALUES ($1, $2, $3) RETURNING *',
+      [customerId, userId, JSON.stringify({})]
     );
-    logger.info(`Conversation created for customer ${customerId}`);
+    logger.info(`Conversation created for customer ${customerId} under user ${userId}`);
     return result.rows[0];
   } catch (error) {
-    logger.error('Error in createConversation', { customerId, error });
+    logger.error('Error in createConversation', { customerId, userId, error });
     throw error;
   }
 };
