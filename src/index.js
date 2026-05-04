@@ -1,58 +1,63 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const QRCode = require('qrcode');
+const path = require('path');
 const logger = require('./utils/logger');
 const { testConnection } = require('./config/database');
-const { createClient, getCurrentQR, getIsReady } = require('./services/whatsappClient');
+const sessionManager = require('./services/whatsappSessionManager');
 const { processMessage } = require('./controllers/whatsappController');
+const { verifyToken } = require('./services/authService');
+const { requireAuth } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.set('trust proxy', 1); // Required for Render/Heroku reverse proxy
+app.set('trust proxy', 1);
+app.use(cors());
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200 }));
 app.use(express.json());
 
-// Live QR code page — open this in your browser to scan
-app.get('/qr', async (req, res) => {
-  const qr = getCurrentQR();
-  const ready = getIsReady();
+// ── SSE endpoint for real-time dashboard updates ──────────────────────────────
+// Token is passed as query param because EventSource doesn't support custom headers
+app.get('/api/events', async (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(401).json({ error: 'Missing token' });
 
-  if (ready) {
-    return res.send(`
-      <html><body style="font-family:sans-serif;text-align:center;padding:50px;background:#f0fff0">
-        <h1 style="color:green">✅ WhatsApp Connected!</h1>
-        <p>Your agent is live and ready to receive messages.</p>
-      </body></html>
-    `);
+  let userId;
+  try {
+    const payload = verifyToken(token);
+    userId = payload.userId;
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
   }
 
-  if (!qr) {
-    return res.send(`
-      <html><head><meta http-equiv="refresh" content="3"></head>
-      <body style="font-family:sans-serif;text-align:center;padding:50px">
-        <h2>⏳ Waiting for QR code...</h2>
-        <p>This page will refresh automatically.</p>
-      </body></html>
-    `);
-  }
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no', // Disable Nginx buffering
+  });
+  res.flushHeaders();
 
-  const qrImage = await QRCode.toDataURL(qr, { width: 400 });
-  res.send(`
-    <html>
-    <head><meta http-equiv="refresh" content="20"></head>
-    <body style="font-family:sans-serif;text-align:center;padding:30px;background:#fff">
-      <h2>📱 Scan with WhatsApp</h2>
-      <img src="${qrImage}" style="border:4px solid #25D366;border-radius:12px"/>
-      <p style="color:#666">Auto-refreshes every 20s &nbsp;|&nbsp;
-        On your phone: <strong>WhatsApp → ⋮ → Linked Devices → Link a Device</strong>
-      </p>
-      <p style="color:#999;font-size:13px">If scanning fails, wait for the page to refresh and try again</p>
-    </body></html>
-  `);
+  // Send a heartbeat every 30s to keep the connection alive through proxies
+  const heartbeat = setInterval(() => {
+    try { res.write(': heartbeat\n\n'); } catch (_) { clearInterval(heartbeat); }
+  }, 30000);
+
+  sessionManager.addSseClient(userId, res);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    sessionManager.removeSseClient(userId, res);
+  });
+});
+
+// Legacy QR page (single-tenant compat — redirects to dashboard)
+app.get('/qr', (req, res) => {
+  res.redirect('/agent-config');
 });
 
 app.get('/health', async (req, res) => {
@@ -60,49 +65,59 @@ app.get('/health', async (req, res) => {
   res.status(dbOk ? 200 : 503).json({
     status: dbOk ? 'ok' : 'degraded',
     database: dbOk ? 'connected' : 'disconnected',
-    whatsapp: getIsReady() ? 'connected' : 'disconnected',
+    activeSessions: require('./services/whatsappSessionManager').sessions?.size || 0,
     timestamp: new Date().toISOString(),
   });
 });
 
 app.get('/', (req, res) => {
-  res.json({ message: 'WhatsApp AI Agent', qr_page: `http://localhost:${PORT}/qr` });
+  res.json({ message: 'WhatsApp AI Agent — Multi-Tenant' });
 });
 
 // Admin: send a message (for testing)
-app.post('/admin/send', async (req, res) => {
+app.post('/admin/send', requireAuth, async (req, res) => {
   const { to, message } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'to and message are required' });
   try {
-    const { sendMessage } = require('./services/whatsappClient');
-    await sendMessage(to, message);
+    await sessionManager.sendText(req.userId, to, message);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// API Routes - Dashboard & Admin Panel
-const authRoutes = require('./routes/auth');
-const agentRoutes = require('./routes/agents');
-const productRoutes = require('./routes/products');
-const orderRoutes = require('./routes/orders');
-const dashboardRoutes = require('./routes/dashboard');
+// API Routes
+app.use('/api/auth',      require('./routes/auth'));
+app.use('/api/agents',    require('./routes/agents'));
+app.use('/api/products',  require('./routes/products'));
+app.use('/api/orders',    require('./routes/orders'));
+app.use('/api/dashboard', require('./routes/dashboard'));
 
-app.use('/api/auth', authRoutes);
-app.use('/api/agents', agentRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/dashboard', dashboardRoutes);
+// Serve React frontend in production
+if (process.env.NODE_ENV === 'production') {
+  const clientPath = path.join(__dirname, '..', 'client', 'dist');
+  app.use(express.static(clientPath));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(clientPath, 'index.html'));
+    } else {
+      res.status(404).json({ error: 'Not found' });
+    }
+  });
+}
 
-app.use((req, res) => res.status(404).json({ error: 'Not found' }));
+app.use((req, res) => {
+  if (req.path.startsWith('/api')) res.status(404).json({ error: 'Not found' });
+  else res.status(404).send('Not found');
+});
+
 app.use((err, req, res, next) => {
   logger.error('Unhandled error', { error: err.message });
   res.status(500).json({ error: 'Internal server error' });
 });
 
 async function start() {
-  logger.info('🚀 Starting WhatsApp AI Agent...');
+  logger.info('🚀 Starting WhatsApp AI Agent (Multi-Tenant)...');
 
   if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY === 'sk-or-your-api-key-here') {
     logger.error('❌ OPENROUTER_API_KEY is not set in .env'); process.exit(1);
@@ -113,13 +128,16 @@ async function start() {
   if (!dbOk) { logger.error('❌ Database connection failed'); process.exit(1); }
 
   app.listen(PORT, () => {
-    logger.info(`✅ Server running — open http://localhost:${PORT}/qr to scan WhatsApp QR code`);
+    logger.info(`✅ Server running on http://localhost:${PORT}`);
   });
 
-  logger.info('📱 Initializing WhatsApp...');
-  const whatsapp = createClient();
-  whatsapp.on('message', processMessage);
-  await whatsapp.initialize();
+  // Restore WhatsApp sessions for users who were connected before this restart
+  logger.info('📱 Restoring WhatsApp sessions...');
+  try {
+    await sessionManager.restoreSessions(processMessage);
+  } catch (err) {
+    logger.warn(`⚠️  Session restore failed: ${err.message}`);
+  }
 }
 
 start();
