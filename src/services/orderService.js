@@ -3,7 +3,7 @@ const logger = require('../utils/logger');
 const helpers = require('../utils/helpers');
 const { PRODUCTS } = require('../config/constants');
 
-const createOrder = async (customerId, items, shippingAddress = null, paymentMethod = null) => {
+const createOrder = async (customerId, items, shippingAddress = null, paymentMethod = null, userId = null) => {
   try {
     const orderNumber = helpers.generateOrderNumber();
     const totalPrice = helpers.calculateOrderTotal(items);
@@ -15,7 +15,8 @@ const createOrder = async (customerId, items, shippingAddress = null, paymentMet
       items,
       totalPrice,
       shippingAddress,
-      paymentMethod
+      paymentMethod,
+      userId
     );
 
     await orderModel.updateEstimatedDelivery(order.id, estimatedDeliveryDate);
@@ -37,11 +38,11 @@ const getOrderDetails = async (orderId) => {
   }
 };
 
-const getOrderByNumber = async (orderNumber) => {
+const getOrderByNumber = async (orderNumber, userId) => {
   try {
-    return await orderModel.getOrderByNumber(orderNumber);
+    return await orderModel.getOrderByNumber(orderNumber, userId);
   } catch (error) {
-    logger.error('Error getting order by number', { orderNumber, error });
+    logger.error('Error getting order by number', { orderNumber, userId, error });
     throw error;
   }
 };
@@ -125,9 +126,11 @@ const validateOrderItems = (items) => {
   return { valid: true };
 };
 
-const findProduct = (productName) => {
+const findProduct = (productName, dbProducts = []) => {
   const lowerName = productName.toLowerCase();
-  return PRODUCTS.find(p => p.name.toLowerCase().includes(lowerName)) || null;
+  // Search DB products first, fall back to hardcoded constants
+  const source = (dbProducts && dbProducts.length > 0) ? dbProducts : PRODUCTS;
+  return source.find(p => p.name.toLowerCase().includes(lowerName)) || null;
 };
 
 // Dashboard functions for multi-tenant orders

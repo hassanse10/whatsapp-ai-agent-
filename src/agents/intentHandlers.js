@@ -283,11 +283,11 @@ const handleConfirmOrder = async (context) => {
 };
 
 const handleOrderTrack = async (context) => {
-  const { customer, entities } = context;
+  const { customer, entities, userId } = context;
   const { formatPrice } = require('../utils/helpers');
 
   if (entities?.order_id) {
-    const order = await orderService.getOrderByNumber(entities.order_id);
+    const order = await orderService.getOrderByNumber(entities.order_id, userId);
     if (!order) return `ما لقيتش رقم "${entities.order_id}". إتفضل رقم آخر.`;
 
     let response = orderService.formatOrderSummary(order);
@@ -336,11 +336,11 @@ const handleEscalate = async (context) => {
 };
 
 const handleOrderCancel = async (context) => {
-  const { entities } = context;
+  const { entities, userId } = context;
   if (!entities?.order_id) return `عطيني رقم الطلبية اللي بغيتي تلغيها (مثلاً: #123).`;
 
   try {
-    const order = await orderService.getOrderByNumber(entities.order_id);
+    const order = await orderService.getOrderByNumber(entities.order_id, userId);
     if (!order) return `ما لقيتش طلبية برقم #${entities.order_id}.`;
     if (order.status === 'cancelled') return `هاد الطلبية #${entities.order_id} متلغاة بالفعل.`;
     if (['shipped', 'delivered'].includes(order.status))
@@ -354,11 +354,11 @@ const handleOrderCancel = async (context) => {
 };
 
 const handleOrderModify = async (context) => {
-  const { entities, claudeResponse } = context;
+  const { entities, claudeResponse, userId } = context;
   if (!entities?.order_id) return `عطيني رقم الطلبية اللي بغيتي تعديلها (مثلاً: #123).`;
 
   try {
-    const order = await orderService.getOrderByNumber(entities.order_id);
+    const order = await orderService.getOrderByNumber(entities.order_id, userId);
     if (!order) return `ما لقيتش طلبية برقم #${entities.order_id}.`;
     if (['shipped', 'delivered', 'cancelled'].includes(order.status))
       return `ما نقدرش نعدلو هاد الطلبية (${order.status}). كتواصل مع الدعم.`;

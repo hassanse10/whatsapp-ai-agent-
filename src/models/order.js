@@ -1,15 +1,15 @@
 const db = require('../config/database');
 const logger = require('../utils/logger');
 
-const createOrder = async (customerId, orderNumber, items, totalPrice, shippingAddress = null, paymentMethod = null) => {
+const createOrder = async (customerId, orderNumber, items, totalPrice, shippingAddress = null, paymentMethod = null, userId = null) => {
   const client = await db.getClient();
 
   try {
     await client.query('BEGIN');
 
     const orderResult = await client.query(
-      'INSERT INTO orders (customer_id, order_number, total_price, shipping_address, payment_method) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [customerId, orderNumber, totalPrice, shippingAddress, paymentMethod]
+      'INSERT INTO orders (customer_id, order_number, total_price, shipping_address, payment_method, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [customerId, orderNumber, totalPrice, shippingAddress, paymentMethod, userId]
     );
 
     const orderId = orderResult.rows[0].id;
@@ -46,15 +46,20 @@ const getOrderById = async (orderId) => {
   }
 };
 
-const getOrderByNumber = async (orderNumber) => {
+const getOrderByNumber = async (orderNumber, userId) => {
   try {
     const result = await db.query(
-      'SELECT o.*, json_agg(json_build_object(\'id\', oi.id, \'product_name\', oi.product_name, \'quantity\', oi.quantity, \'size\', oi.size, \'color\', oi.color, \'price\', oi.price)) AS items FROM orders o LEFT JOIN order_items oi ON o.id = oi.order_id WHERE o.order_number = $1 GROUP BY o.id',
-      [orderNumber]
+      `SELECT o.*, json_agg(json_build_object('id', oi.id, 'product_name', oi.product_name,
+        'quantity', oi.quantity, 'size', oi.size, 'color', oi.color, 'price', oi.price)) AS items
+       FROM orders o
+       LEFT JOIN order_items oi ON o.id = oi.order_id
+       WHERE o.order_number = $1 AND o.user_id = $2
+       GROUP BY o.id`,
+      [orderNumber, userId]
     );
     return result.rows[0] || null;
   } catch (error) {
-    logger.error('Error in getOrderByNumber', { orderNumber, error });
+    logger.error('Error in getOrderByNumber', { orderNumber, userId, error });
     throw error;
   }
 };
