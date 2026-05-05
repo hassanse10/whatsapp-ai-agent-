@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ordersAPI } from '../services/api';
+import { ordersAPI, deliveryMenAPI } from '../services/api';
 import './Orders.css';
 
 const VALID_STATUSES = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
@@ -18,6 +18,8 @@ export default function Orders() {
   const [editDelivery, setEditDelivery] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [deliveryMen, setDeliveryMen] = useState([]);
+  const [editDeliveryManId, setEditDeliveryManId] = useState('');
 
   useEffect(() => { fetchOrders(); }, [pagination.offset]);
 
@@ -63,6 +65,13 @@ export default function Orders() {
       setEditStatus(order.status);
       setEditTracking(order.tracking_number || '');
       setEditDelivery(order.estimated_delivery || '');
+      setEditDeliveryManId(order.delivery_man_id || '');
+      if (deliveryMen.length === 0) {
+        try {
+          const dmRes = await deliveryMenAPI.getAll();
+          setDeliveryMen(dmRes.data.deliveryMen || []);
+        } catch (_) {}
+      }
     } catch (err) {
       setError('Failed to load order details');
     }
@@ -76,7 +85,8 @@ export default function Orders() {
         selectedOrder.id,
         editStatus,
         editTracking || undefined,
-        editDelivery || undefined
+        editDelivery || undefined,
+        editDeliveryManId || undefined
       );
       const updated = res.data.order;
       setSelectedOrder(prev => ({ ...prev, ...updated }));
@@ -116,6 +126,28 @@ export default function Orders() {
 
   const fmt = (price) => `${parseFloat(price).toFixed(2)} MAD`;
 
+  const handleExportCSV = () => {
+    const headers = ['Order Number','Customer','Phone','Status','Total (MAD)','Payment','Shipping Address','Date'];
+    const rows = orders.map(o => [
+      o.order_number,
+      o.customer_name || '',
+      o.phone_number || '',
+      o.status,
+      parseFloat(o.total_price).toFixed(2),
+      (o.payment_method || '').replace(/_/g, ' '),
+      (o.shipping_address || '').replace(/,/g, ' '),
+      new Date(o.created_at).toLocaleDateString(),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `orders-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
 
   return (
@@ -132,6 +164,9 @@ export default function Orders() {
               </span>
             )}
           </div>
+          <button className="btn btn-outline btn-sm" onClick={handleExportCSV}>
+            ⬇ Export CSV
+          </button>
         </div>
         <p className="page-subtitle">View and manage all orders placed through your agent</p>
       </div>
@@ -253,7 +288,28 @@ export default function Orders() {
                       disabled={saving}
                     />
                   </div>
+                  <div className="form-group">
+                    <label>Delivery Man</label>
+                    <select
+                      className="form-control"
+                      value={editDeliveryManId}
+                      onChange={(e) => setEditDeliveryManId(e.target.value)}
+                      disabled={saving}
+                    >
+                      <option value="">— Unassigned —</option>
+                      {deliveryMen.map(dm => (
+                        <option key={dm.id} value={dm.id}>
+                          {dm.name}{dm.vehicle_type ? ` — ${dm.vehicle_type}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
+                {editStatus === 'shipped' && (
+                  <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:'6px',padding:'0.6rem 0.9rem',fontSize:'0.8rem',color:'#92400e',marginTop:'0.75rem'}}>
+                    ⚡ Status is <strong>shipped</strong> — saving will auto-send a WhatsApp notification to the customer.
+                  </div>
+                )}
               </div>
 
               {/* Order Info */}
