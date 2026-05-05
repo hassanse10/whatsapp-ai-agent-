@@ -1,0 +1,256 @@
+.agent-config {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.config-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+}
+
+.config-card,
+.preview-card {
+  background: var(--bg-white);
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.config-card h2,
+.preview-card h2 {
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+  color: var(--text-dark);
+}
+
+.config-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.config-card button {
+  margin-top: 0.5rem;
+}
+
+.preview-info {
+  background-color: var(--bg-light);
+  padding: 1.5rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.preview-info p {
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.preview-info p:last-child {
+  margin-bottom: 0;
+}
+
+.preview-info strong {
+  color: var(--text-dark);
+}
+
+.preview-card h3 {
+  font-size: 1rem;
+  margin: 1.5rem 0 0.75rem 0;
+  color: var(--text-dark);
+}
+
+.preview-response {
+  background: linear-gradient(135deg, rgba(37, 211, 102, 0.05) 0%, rgba(52, 183, 241, 0.05) 100%);
+  padding: 1rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--primary-color);
+  margin-bottom: 1.5rem;
+}
+
+.preview-response p {
+  margin: 0;
+  color: var(--text-dark);
+  font-style: italic;
+}
+
+.whatsapp-status {
+  background-color: var(--bg-light);
+  padding: 1rem;
+  border-radius: 6px;
+  margin-top: 1rem;
+}
+
+.whatsapp-status p {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-connected {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.status-disconnected {
+  background-color: #fee2e2;
+  color: #7f1d1d;
+}
+
+.status-scanning {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+/* QR Code Section */
+.qr-section {
+  margin-top: 3rem;
+}
+
+.qr-card {
+  background: var(--bg-white);
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.qr-card h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-dark);
+}
+
+.qr-instructions {
+  color: var(--text-gray);
+  margin-bottom: 2rem;
+  font-size: 0.95rem;
+}
+
+.qr-display {
+  text-align: center;
+}
+
+.qr-image {
+  border: 3px solid var(--primary-color);
+  border-radius: 8px;
+  padding: 1rem;
+  background: white;
+  max-width: 300px;
+  width: 100%;
+  margin-bottom: 2rem;
+}
+
+.qr-instructions-detail {
+  background-color: var(--bg-light);
+  padding: 1.5rem;
+  border-radius: 6px;
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.qr-instructions-detail ol {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: var(--text-dark);
+}
+
+.qr-instructions-detail li {
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.qr-instructions-detail li:last-child {
+  margin-bottom: 0;
+}
+
+.qr-instructions-detail strong {
+  color: var(--text-dark);
+  font-weight: 600;
+}
+
+.qr-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  color: var(--text-gray);
+}
+
+.qr-placeholder p {
+  margin-top: 1rem;
+  font-size: 0.95rem;
+}
+
+.qr-connected {
+  text-align: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(220, 252, 231, 0.3) 0%, rgba(198, 239, 206, 0.3) 100%);
+  border-radius: 6px;
+  border: 2px solid #dcfce7;
+}
+
+.status-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.qr-connected h3 {
+  color: #166534;
+  margin-bottom: 0.5rem;
+}
+
+.qr-connected p {
+  color: #16a34a;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.qr-error {
+  text-align: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(254, 226, 226, 0.3) 0%, rgba(252, 186, 186, 0.3) 100%);
+  border-radius: 6px;
+  border: 2px solid #fee2e2;
+  color: #7f1d1d;
+}
+
+.qr-error p {
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 968px) {
+  .config-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .config-card,
+  .preview-card {
+    padding: 1rem;
+  }
+
+  .config-card h2,
+  .preview-card h2 {
+    font-size: 1.1rem;
+  }
+
+  .qr-card {
+    padding: 1.5rem;
+  }
+
+  .qr-card h2 {
+    font-size: 1.25rem;
+  }
+}

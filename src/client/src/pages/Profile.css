@@ -1,0 +1,120 @@
+.profile-page {
+  animation: fadeIn 0.3s ease-in;
+  max-width: 600px;
+}
+
+.profile-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-white);
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tab-button {
+  flex: 1;
+  padding: 1rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-light);
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab-button:hover {
+  color: var(--text-dark);
+  background: var(--bg-light);
+}
+
+.tab-button.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+  background: transparent;
+}
+
+.profile-card,
+.account-info {
+  margin-bottom: 2rem;
+}
+
+.profile-card h2,
+.account-info h2 {
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+  color: var(--text-dark);
+}
+
+.profile-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.profile-card button {
+  margin-top: 0.5rem;
+  align-self: flex-start;
+}
+
+.account-info {
+  background: linear-gradient(135deg, rgba(37, 211, 102, 0.05) 0%, rgba(52, 183, 241, 0.05) 100%);
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-label {
+  font-size: 0.9rem;
+  color: var(--text-light);
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.info-value {
+  font-size: 1rem;
+  color: var(--text-dark);
+  font-weight: 600;
+}
+
+.status-active {
+  color: var(--success-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .profile-page {
+    max-width: 100%;
+  }
+
+  .profile-tabs {
+    flex-direction: column;
+  }
+
+  .tab-button {
+    border-bottom: 1px solid var(--border-color);
+    border-right: none;
+  }
+
+  .tab-button.active {
+    border-bottom: 3px solid var(--primary-color);
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+}

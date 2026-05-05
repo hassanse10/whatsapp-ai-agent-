@@ -1,0 +1,166 @@
+.dashboard {
+  animation: fadeIn 0.3s ease-in;
+}
+
+/* Flash green border when a new order arrives via SSE */
+.card-flash {
+  animation: orderFlash 2s ease-out;
+}
+
+@keyframes orderFlash {
+  0%   { box-shadow: 0 0 0 3px #25D366; }
+  100% { box-shadow: none; }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.stats-grid {
+  margin-bottom: 2rem;
+}
+
+.dashboard-grid {
+  margin-bottom: 2rem;
+}
+
+.orders-list,
+.products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.order-item,
+.product-item {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.order-item:last-child,
+.product-item:last-child {
+  border-bottom: none;
+}
+
+.order-info {
+  flex: 1;
+}
+
+.order-number {
+  font-weight: 600;
+  color: var(--text-dark);
+  margin-bottom: 0.25rem;
+}
+
+.order-customer {
+  font-size: 0.85rem;
+  color: var(--text-light);
+}
+
+.order-amount {
+  font-weight: 600;
+  color: var(--primary-color);
+  margin: 0 1rem;
+  min-width: 80px;
+  text-align: right;
+}
+
+.order-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.status-pending {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.status-confirmed {
+  background-color: #dbeafe;
+  color: #0c2d6b;
+}
+
+.status-processing {
+  background-color: #dbeafe;
+  color: #0c2d6b;
+}
+
+.status-shipped {
+  background-color: #e0e7ff;
+  color: #312e81;
+}
+
+.status-delivered {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.status-cancelled {
+  background-color: #fee2e2;
+  color: #7f1d1d;
+}
+
+.product-name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.product-stats {
+  display: flex;
+  gap: 1rem;
+  min-width: 150px;
+  justify-content: flex-end;
+}
+
+.product-stats .stat {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  padding: 0.25rem 0.5rem;
+  background-color: var(--bg-light);
+  border-radius: 4px;
+}
+
+.empty-message {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-light);
+}
+
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .order-item,
+  .product-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .order-amount {
+    margin: 0.5rem 0 0 0;
+    text-align: left;
+  }
+
+  .product-stats {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+}

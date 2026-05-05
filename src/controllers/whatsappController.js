@@ -4,63 +4,59 @@ const customerModel = require('../models/customer');
 const conversationModel = require('../models/conversation');
 const claudeService = require('../services/claudeService');
 const conversationService = require('../services/conversationService');
-const sentimentService = require('../services/sentimentService');
 const flowManager = require('../agents/conversationFlowManager');
 const { executeHandler } = require('../agents/intentHandlers');
-const { sendMessage } = require('../services/whatsappClient');
 const { ENABLE_ESCALATION } = require('../config/constants');
+const productService = require('../services/productService');
+const db = require('../config/database');
 
-const processMessage = async (msg) => {
+// userId is now bound in closure by whatsappSessionManager — no shared global needed
+const processMessage = async (msg, userId) => {
   const requestId = generateRequestId();
-  const from = msg.from;        // e.g. 155061304991886@lid or 212xxxxxxx@c.us
+  const from = msg.from;
   const body = msg.body;
 
-  // Ignore group messages and status updates
   if (msg.from.includes('@g.us') || msg.from === 'status@broadcast') return;
-  // Ignore non-text messages
   if (msg.type !== 'chat') return;
 
-  logger.info('Message received', { requestId, from, body: body.substring(0, 80) });
+  logger.info('Message received', { requestId, userId, from, body: body.substring(0, 80) });
 
   try {
-    const customer = await customerModel.getOrCreateCustomer(from);
+    const customer = await customerModel.getOrCreateCustomer(from, userId);
     const conversation =
       (await conversationModel.getActiveConversation(customer.id)) ||
-      (await conversationModel.createConversation(customer.id));
+      (await conversationModel.createConversation(customer.id, userId));
 
     await customerModel.updateLastContact(customer.id);
 
-    // Fetch history BEFORE saving current message to avoid duplication
     const conversationContext = await conversationService.getConversationContext(conversation.id);
 
-    // Single unified Claude call returns all analysis + response
-    const analysis = await claudeService.sendMessage(body, conversationContext);
+    // Load this user's products and agent config
+    const [products, agentResult] = await Promise.all([
+      productService.getUserProducts(userId),
+      db.query(
+        `SELECT agent_name, language, tone, response_style, system_prompt_override
+         FROM user_agents WHERE user_id = $1 LIMIT 1`,
+        [userId]
+      ),
+    ]);
+    const agentConfig = agentResult.rows[0] || null;
 
-    const {
-      intent,
-      entities,
-      sentiment,
-      missing_fields,
-      response: claudeResponse,
-      flow_decision,
-    } = analysis;
+    const analysis = await claudeService.sendMessage(body, conversationContext, products, agentConfig);
 
-    // Save user message with extracted analysis
-    await conversationService.saveMessage(
-      conversation.id, 'user', body, intent, sentiment, entities
-    );
+    const { intent, entities, sentiment, missing_fields, response: claudeResponse, flow_decision } = analysis;
 
-    logger.debug('Analyzed', { requestId, intent, sentiment, missing_fields, flow_decision });
+    await conversationService.saveMessage(conversation.id, 'user', body, intent, sentiment, entities);
+
+    logger.debug('Analyzed', { requestId, intent, sentiment, flow_decision });
 
     let botResponse;
 
-    // Check if escalation needed (sentiment-based or flow decision)
     if ((ENABLE_ESCALATION && sentiment < -0.7) || flow_decision === 'needs_escalation') {
       const reason = sentiment < -0.7 ? 'negative_sentiment' : 'customer_request';
       await flowManager.startEscalationFlow(conversation.id, reason);
       botResponse = `واضح أنك مش مرتاح، وكنتأسف بصح. غادي نحيلك لفريق الدعم المتخصص ديالنا باش يعطيك الاهتمام اللي تستاهل.\n\nوكيل بشري غادي يكون معاك قريباً. شكراً على صبرك! 👋`;
     } else {
-      // Pass analysis to handler to decide what to do
       const context = {
         conversationId: conversation.id,
         customer,
@@ -72,20 +68,21 @@ const processMessage = async (msg) => {
         missing_fields,
         flow_decision,
         claudeResponse,
+        products,
+        agentConfig,
+        userId,
       };
       botResponse = await executeHandler(intent, context);
     }
 
-    // Some handlers send their own media messages and return null to skip the text reply
     if (!botResponse) {
       logger.info('Reply sent (media only)', { requestId, to: from });
       return;
     }
 
     botResponse = formatWhatsAppMessage(botResponse);
-
     await conversationService.saveMessage(conversation.id, 'bot', botResponse);
-    await msg.reply(botResponse);   // reply directly — works with any ID format (@lid, @c.us)
+    await msg.reply(botResponse);
 
     logger.info('Reply sent', { requestId, to: from });
   } catch (error) {

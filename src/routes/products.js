@@ -38,7 +38,7 @@ router.get('/:productId', requireAuth, async (req, res) => {
 // POST /api/products - Create new product
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { name, description, price, imageUrl, sizes, colors, stockQuantity } = req.body;
+    const { name, description, price, image_url, sizes, colors, stock_quantity } = req.body;
 
     if (!name || !price) {
       return res.status(400).json({ error: 'Product name and price are required' });
@@ -48,10 +48,10 @@ router.post('/', requireAuth, async (req, res) => {
       name,
       description,
       price,
-      imageUrl,
+      imageUrl: image_url,
       sizes,
       colors,
-      stockQuantity,
+      stockQuantity: stock_quantity,
     });
 
     logger.info('Product created', { userId: req.userId, productId: product.id });
@@ -67,16 +67,16 @@ router.post('/', requireAuth, async (req, res) => {
 router.put('/:productId', requireAuth, async (req, res) => {
   try {
     const { productId } = req.params;
-    const { name, description, price, imageUrl, sizes, colors, stockQuantity } = req.body;
+    const { name, description, price, image_url, sizes, colors, stock_quantity } = req.body;
 
     const product = await productService.updateProduct(req.userId, productId, {
       name,
       description,
       price,
-      imageUrl,
+      imageUrl: image_url,
       sizes,
       colors,
-      stockQuantity,
+      stockQuantity: stock_quantity,
     });
 
     logger.info('Product updated', { userId: req.userId, productId });

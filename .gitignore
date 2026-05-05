@@ -46,3 +46,13 @@ coverage/
 # Misc
 .cache
 .turbo
+
+# WhatsApp session data (sensitive, large, machine-specific)
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Brainstorming visual companion
+.superpowers/
+
+# Windows null device
+nul
