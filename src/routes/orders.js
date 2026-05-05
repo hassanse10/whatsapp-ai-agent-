@@ -9,8 +9,8 @@ const router = express.Router();
 // GET /api/orders - List all orders for user
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit) : 50;
-    const offset = req.query.offset ? parseInt(req.query.offset) : 0;
+    const limit = Math.max(1, parseInt(req.query.limit) || 50);
+    const offset = Math.max(0, parseInt(req.query.offset) || 0);
 
     const orders = await orderService.getUserOrders(req.userId, limit, offset);
 

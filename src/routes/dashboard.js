@@ -28,7 +28,7 @@ router.get('/overview', requireAuth, async (req, res) => {
 // GET /api/dashboard/recent-orders - Get recent orders
 router.get('/recent-orders', requireAuth, async (req, res) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+    const limit = Math.max(1, parseInt(req.query.limit) || 10);
 
     const recentOrders = await orderService.getRecentOrders(req.userId, limit);
 
@@ -42,7 +42,7 @@ router.get('/recent-orders', requireAuth, async (req, res) => {
 // GET /api/dashboard/top-products - Get top-selling products
 router.get('/top-products', requireAuth, async (req, res) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit) : 5;
+    const limit = Math.max(1, parseInt(req.query.limit) || 5);
 
     const topProducts = await orderService.getTopProducts(req.userId, limit);
 
