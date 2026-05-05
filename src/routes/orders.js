@@ -47,7 +47,7 @@ router.get('/:orderId', requireAuth, async (req, res) => {
     const orderResult = await db.query(
       `SELECT o.id, o.order_number, o.customer_id, o.status, o.total_price,
               o.shipping_address, o.payment_method, o.tracking_number,
-              o.estimated_delivery, o.created_at, o.updated_at,
+              o.estimated_delivery, o.delivery_man_id, o.created_at, o.updated_at,
               c.name as customer_name, c.phone_number, c.email
        FROM orders o
        LEFT JOIN customers c ON o.customer_id = c.id

@@ -69,8 +69,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const activeOrders = await db.query(
       `SELECT COUNT(*) as count FROM orders
-       WHERE delivery_man_id = $1 AND status NOT IN ('delivered', 'cancelled')`,
-      [req.params.id]
+       WHERE delivery_man_id = $1 AND user_id = $2 AND status NOT IN ('delivered', 'cancelled')`,
+      [req.params.id, req.userId]
     );
     if (parseInt(activeOrders.rows[0].count) > 0) {
       return res.status(400).json({ error: 'Cannot delete — assigned to active orders' });
