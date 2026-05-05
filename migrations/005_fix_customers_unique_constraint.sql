@@ -12,4 +12,12 @@ WHERE user_id IS NULL;
 ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_phone_number_key;
 
 -- Step 3: Add composite unique constraint for multi-tenancy
-ALTER TABLE customers ADD CONSTRAINT customers_phone_number_user_id_key UNIQUE (phone_number, user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'customers_phone_number_user_id_key'
+  ) THEN
+    ALTER TABLE customers ADD CONSTRAINT customers_phone_number_user_id_key UNIQUE (phone_number, user_id);
+  END IF;
+END $$;
