@@ -92,9 +92,7 @@ const parseWhatsAppWebhook = (body) => {
 };
 
 const formatWhatsAppMessage = (text) => {
-  return text
-    .replace(/\n/g, '\n')
-    .substring(0, 1024);
+  return text.substring(0, 4096);
 };
 
 const calculateOrderTotal = (items) => {
