@@ -65,9 +65,17 @@ export const ordersAPI = {
   getAll: (limit = 50, offset = 0) =>
     api.get('/orders', { params: { limit, offset } }),
   getById: (orderId) => api.get(`/orders/${orderId}`),
-  updateStatus: (orderId, status, trackingNumber, estimatedDelivery) =>
-    api.put(`/orders/${orderId}`, { status, trackingNumber, estimatedDelivery }),
+  updateStatus: (orderId, status, trackingNumber, estimatedDelivery, deliveryManId) =>
+    api.put(`/orders/${orderId}`, { status, trackingNumber, estimatedDelivery, deliveryManId }),
   cancel: (orderId) => api.post(`/orders/${orderId}/cancel`),
+};
+
+// Delivery Men API
+export const deliveryMenAPI = {
+  getAll: () => api.get('/delivery-men'),
+  create: (data) => api.post('/delivery-men', data),
+  update: (id, data) => api.put(`/delivery-men/${id}`, data),
+  delete: (id) => api.delete(`/delivery-men/${id}`),
 };
 
 // Dashboard API
