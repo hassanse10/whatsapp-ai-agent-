@@ -90,37 +90,27 @@ const SYSTEM_PROMPT = `أنت وكيل خدمة العملاء ديال متجر
 - If customer buys leather bag, suggest belt for matching style
 - Always ask: "واش بغيتي شي حاجة أخرى تحتاج؟" (want anything else you might need?)`;
 
-const LANGUAGE_INSTRUCTIONS = {
-  darija:  'IMPORTANT: Always respond in Moroccan Darija (Moroccan Arabic dialect). Never switch to Modern Standard Arabic or any other language.',
-  arabic:  'IMPORTANT: Always respond in Modern Standard Arabic (فصحى).',
-  french:  'IMPORTANT: Always respond in French. Never switch to Arabic or English.',
-  english: 'IMPORTANT: Always respond in English. Never switch to Arabic or French.',
+const LANGUAGE_OVERRIDE = {
+  darija:  'FINAL INSTRUCTION — LANGUAGE: Respond ONLY in Moroccan Darija. This overrides all previous language instructions.',
+  arabic:  'FINAL INSTRUCTION — LANGUAGE: Respond ONLY in Modern Standard Arabic (فصحى). This overrides all previous language instructions.',
+  french:  'FINAL INSTRUCTION — LANGUAGE: Respond ONLY in French. Ignore any previous instruction to use Arabic or Darija. Every single message must be in French.',
+  english: 'FINAL INSTRUCTION — LANGUAGE: Respond ONLY in English. Ignore any previous instruction to use Arabic or Darija. Every single message must be in English.',
 };
 
 const TONE_INSTRUCTIONS = {
-  professional: 'Tone: professional and polished. Use formal language, avoid slang.',
-  friendly:     'Tone: warm and friendly. Be approachable and personal.',
-  casual:       'Tone: casual and relaxed. Use everyday language, contractions are fine.',
+  professional: 'Tone: professional and polished.',
+  friendly:     'Tone: warm and friendly.',
+  casual:       'Tone: casual and relaxed.',
 };
 
 const STYLE_INSTRUCTIONS = {
-  concise:  'Response style: keep answers short and direct — 1-2 sentences max.',
-  detailed: 'Response style: give thorough, complete answers with context.',
-  humorous: 'Response style: light-hearted and fun, add a touch of humour where appropriate.',
+  concise:  'Response style: 1-2 sentences max — short and direct.',
+  detailed: 'Response style: thorough and complete.',
+  humorous: 'Response style: light-hearted with a touch of humour.',
 };
 
 const buildSystemPrompt = (products = [], agentConfig = null) => {
   let prompt = agentConfig?.system_prompt_override || SYSTEM_PROMPT;
-
-  // Append agent personality settings (only when not using a full override)
-  if (!agentConfig?.system_prompt_override && agentConfig) {
-    const extras = [];
-    if (agentConfig.agent_name) extras.push(`Your name is ${agentConfig.agent_name}.`);
-    if (agentConfig.language && LANGUAGE_INSTRUCTIONS[agentConfig.language]) extras.push(LANGUAGE_INSTRUCTIONS[agentConfig.language]);
-    if (agentConfig.tone && TONE_INSTRUCTIONS[agentConfig.tone]) extras.push(TONE_INSTRUCTIONS[agentConfig.tone]);
-    if (agentConfig.response_style && STYLE_INSTRUCTIONS[agentConfig.response_style]) extras.push(STYLE_INSTRUCTIONS[agentConfig.response_style]);
-    if (extras.length > 0) prompt += `\n\n**Agent Settings:**\n${extras.join('\n')}`;
-  }
 
   if (products && products.length > 0) {
     const catalog = products.map((p) => {
@@ -131,6 +121,19 @@ const buildSystemPrompt = (products = [], agentConfig = null) => {
     }).join('\n');
 
     prompt += `\n\n**CATALOG (use ONLY these products — no invented items):**\n${catalog}\n\nإذا سأل العميل على المنتجات، استعمل فقط هاد المنتجات اللي فوق.`;
+  }
+
+  // Agent settings appended LAST so they override the base prompt's language instruction
+  if (!agentConfig?.system_prompt_override && agentConfig) {
+    const overrides = [];
+    if (agentConfig.agent_name) overrides.push(`Your name is ${agentConfig.agent_name}.`);
+    if (agentConfig.tone && TONE_INSTRUCTIONS[agentConfig.tone]) overrides.push(TONE_INSTRUCTIONS[agentConfig.tone]);
+    if (agentConfig.response_style && STYLE_INSTRUCTIONS[agentConfig.response_style]) overrides.push(STYLE_INSTRUCTIONS[agentConfig.response_style]);
+    if (overrides.length > 0) prompt += `\n\n${overrides.join(' ')}`;
+    // Language MUST be the absolute last instruction to win against the base prompt
+    if (agentConfig.language && LANGUAGE_OVERRIDE[agentConfig.language]) {
+      prompt += `\n\n${LANGUAGE_OVERRIDE[agentConfig.language]}`;
+    }
   }
 
   return prompt;
