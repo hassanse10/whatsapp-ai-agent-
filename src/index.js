@@ -78,9 +78,6 @@ app.get('/health', async (req, res) => {
   });
 });
 
-app.get('/', (req, res) => {
-  res.json({ message: 'WhatsApp AI Agent — Multi-Tenant' });
-});
 
 // Admin: send a message (for testing)
 app.post('/admin/send', requireAuth, async (req, res) => {
