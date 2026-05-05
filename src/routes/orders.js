@@ -3,6 +3,7 @@ const { requireAuth } = require('../middleware/auth');
 const orderService = require('../services/orderService');
 const db = require('../config/database');
 const logger = require('../utils/logger');
+const sessionManager = require('../services/whatsappSessionManager');
 
 const router = express.Router();
 
@@ -83,7 +84,7 @@ const VALID_STATUSES = ['pending', 'confirmed', 'processing', 'shipped', 'delive
 router.put('/:orderId', requireAuth, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { status, trackingNumber, estimatedDelivery } = req.body;
+    const { status, trackingNumber, estimatedDelivery, deliveryManId } = req.body;
 
     if (status && !VALID_STATUSES.includes(status)) {
       return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` });
@@ -96,6 +97,10 @@ router.put('/:orderId', requireAuth, async (req, res) => {
     if (status) { updates.push(`status = $${idx++}`); values.push(status); }
     if (trackingNumber !== undefined) { updates.push(`tracking_number = $${idx++}`); values.push(trackingNumber || null); }
     if (estimatedDelivery !== undefined) { updates.push(`estimated_delivery = $${idx++}`); values.push(estimatedDelivery || null); }
+    if (deliveryManId !== undefined) {
+      updates.push(`delivery_man_id = $${idx++}`);
+      values.push(deliveryManId || null);
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -111,6 +116,66 @@ router.put('/:orderId', requireAuth, async (req, res) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Auto-send WhatsApp notification when status changes to shipped
+    if (status === 'shipped') {
+      try {
+        const updatedOrder = result.rows[0];
+
+        const customerResult = await db.query(
+          `SELECT c.phone_number FROM customers c
+           JOIN orders o ON o.customer_id = c.id
+           WHERE o.id = $1`,
+          [orderId]
+        );
+
+        const dmId = deliveryManId !== undefined ? (deliveryManId || null) : updatedOrder.delivery_man_id;
+        const dmResult = dmId ? await db.query(
+          'SELECT name, phone, vehicle_type FROM delivery_men WHERE id = $1 AND user_id = $2',
+          [dmId, req.userId]
+        ) : { rows: [] };
+
+        const itemsResult = await db.query(
+          'SELECT product_name, quantity, size, color, price FROM order_items WHERE order_id = $1',
+          [orderId]
+        );
+
+        if (customerResult.rows.length > 0) {
+          const phone = customerResult.rows[0].phone_number;
+          const dm = dmResult.rows[0] || null;
+          const items = itemsResult.rows;
+          const total = parseFloat(updatedOrder.total_price).toFixed(2);
+
+          let itemLines = items.map(i => {
+            let line = `• ${i.quantity}x ${i.product_name}`;
+            if (i.size || i.color) line += ` (${[i.size, i.color].filter(Boolean).join(' / ')})`;
+            line += ` — ${parseFloat(i.price * i.quantity).toFixed(2)} MAD`;
+            return line;
+          }).join('\n');
+
+          let msg = `✅ *طلبيتك غادي تتوصل ليك!*\n\n`;
+          msg += `🔖 رقم الطلبية: *#${updatedOrder.order_number}*\n`;
+          msg += `📦 المنتجات:\n${itemLines}\n`;
+          msg += `💰 المجموع: *${total} MAD*\n`;
+          if (updatedOrder.shipping_address) msg += `📍 العنوان: ${updatedOrder.shipping_address}\n`;
+
+          if (dm) {
+            msg += `\n🚗 *معلومات السائق:*\n`;
+            msg += `👤 الاسم: ${dm.name}\n`;
+            msg += `📱 الهاتف: ${dm.phone}\n`;
+            if (dm.vehicle_type) msg += `🚘 المركبة: ${dm.vehicle_type}\n`;
+          }
+
+          msg += `\nشكراً على ثقتك فينا! 🙏`;
+
+          await sessionManager.sendText(req.userId, phone, msg);
+          logger.info('Shipped WhatsApp notification sent', { orderId, phone });
+        }
+      } catch (notifyErr) {
+        logger.error('Failed to send shipped WhatsApp notification', { orderId, error: notifyErr.message });
+        // Do NOT fail the request — order update already succeeded
+      }
     }
 
     logger.info('Order updated', { orderId, userId: req.userId, status, trackingNumber });

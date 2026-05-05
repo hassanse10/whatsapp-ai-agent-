@@ -97,7 +97,8 @@ app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/agents',    require('./routes/agents'));
 app.use('/api/products',  require('./routes/products'));
 app.use('/api/orders',    require('./routes/orders'));
-app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/dashboard',     require('./routes/dashboard'));
+app.use('/api/delivery-men',  require('./routes/deliveryMen'));
 
 // Serve React frontend in production
 if (process.env.NODE_ENV === 'production') {
