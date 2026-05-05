@@ -30,13 +30,13 @@ const generateMockTracking = (orderId) => {
 
 const getRandomLocation = () => {
   const locations = [
-    'Distribution Center, Los Angeles, CA',
-    'Regional Hub, Chicago, IL',
-    'Sorting Facility, New York, NY',
-    'Local Delivery Station, Miami, FL',
-    'In Transit',
-    'Out for Delivery',
-    'Warehouse, Dallas, TX',
+    'مركز التوزيع، الدار البيضاء',
+    'مستودع الفرز، الرباط',
+    'محطة التسليم المحلية، مراكش',
+    'مركز اللوجيستيك، فاس',
+    'في الطريق',
+    'خارج للتسليم',
+    'مستودع، طنجة',
   ];
   return locations[Math.floor(Math.random() * locations.length)];
 };
@@ -48,16 +48,16 @@ const generateTrackingEvents = (status) => {
   events.push({
     timestamp: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
     status: 'pending',
-    location: 'Warehouse',
-    description: 'Order picked and packed',
+    location: 'المستودع',
+    description: 'تم تجهيز وتغليف الطلبية',
   });
 
   if (status === 'in_transit' || status === 'out_for_delivery' || status === 'delivered') {
     events.push({
       timestamp: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(),
       status: 'in_transit',
-      location: 'Distribution Center',
-      description: 'Package in transit to delivery location',
+      location: 'مركز التوزيع',
+      description: 'الطرد في الطريق نحو وجهة التسليم',
     });
   }
 
@@ -65,8 +65,8 @@ const generateTrackingEvents = (status) => {
     events.push({
       timestamp: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
       status: 'out_for_delivery',
-      location: 'Local Delivery',
-      description: 'Out for delivery with driver',
+      location: 'التسليم المحلي',
+      description: 'خرج مع عامل التوصيل',
     });
   }
 
@@ -74,8 +74,8 @@ const generateTrackingEvents = (status) => {
     events.push({
       timestamp: now.toISOString(),
       status: 'delivered',
-      location: 'Delivery Address',
-      description: 'Package delivered successfully',
+      location: 'عنوان التسليم',
+      description: 'تم تسليم الطرد بنجاح',
     });
   }
 
@@ -89,22 +89,32 @@ const trackPackage = (trackingNumber) => {
   return mockData;
 };
 
-const formatTrackingInfo = (tracking) => {
-  let info = `📍 Tracking Information\n`;
-  info += `Tracking Number: ${tracking.tracking_number}\n`;
-  info += `Status: ${tracking.status.toUpperCase()}\n`;
-  info += `Current Location: ${tracking.current_location}\n`;
-  info += `Estimated Delivery: ${tracking.estimated_delivery}\n\n`;
+const STATUS_LABELS = {
+  pending: 'في الانتظار',
+  in_transit: 'في الطريق',
+  out_for_delivery: 'خارج للتسليم',
+  delivered: 'تم التسليم',
+  delayed: 'متأخر',
+  exception: 'مشكل في التوصيل',
+};
 
-  info += `Recent Updates:\n`;
+const formatTrackingInfo = (tracking) => {
+  const statusLabel = STATUS_LABELS[tracking.status] || tracking.status;
+  let info = `📍 *معلومات التتبع*\n`;
+  info += `رقم التتبع: ${tracking.tracking_number}\n`;
+  info += `الحالة: ${statusLabel}\n`;
+  info += `الموقع الحالي: ${tracking.current_location}\n`;
+  info += `التسليم المتوقع: ${tracking.estimated_delivery}\n\n`;
+
+  info += `آخر التحديثات:\n`;
   if (tracking.events && tracking.events.length > 0) {
     const recentEvents = tracking.events.slice(-3).reverse();
     recentEvents.forEach(event => {
       const date = new Date(event.timestamp);
-      const timeStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      const timeStr = date.toLocaleDateString('ar-MA') + ' ' + date.toLocaleTimeString('ar-MA');
       info += `• ${timeStr}\n`;
       info += `  ${event.description}\n`;
-      info += `  Location: ${event.location}\n\n`;
+      info += `  الموقع: ${event.location}\n\n`;
     });
   }
 
