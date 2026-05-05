@@ -23,7 +23,9 @@ const SYSTEM_PROMPT = `أنت وكيل خدمة العملاء ديال متجر
 
 المهام ديالك:
 - تساعد العملاء فالأسئلة على المنتجات وتقترح عليهم حاجات تناسبهم
+- ترسل صور المنتجات إذا طلبها العميل
 - تساعد فإنشاء الطلبيات بطريقة طبيعية (أحصل على المنتجات، الكمية، القياس، اللون، الاسم، العنوان، طريقة الدفع)
+- تأكد الطلبيات وترسل وصل تأكيد فوراً
 - تقترح عليهم منتجات إضافية اللي تناسب ما خاصهم
 - تعطي معلومات عن تتبع الطلبيات
 - تساعد في إلغاء أو تعديل الطلبيات الموجودة
@@ -32,7 +34,7 @@ const SYSTEM_PROMPT = `أنت وكيل خدمة العملاء ديال متجر
 
 **CRITICAL - Return your response as JSON in this exact format:**
 {
-  "intent": "ORDER_CREATE|ORDER_TRACK|ORDER_CANCEL|ORDER_MODIFY|PRODUCT_INFO|FAQ|GREETING|COMPLAINT|ESCALATE|OTHER",
+  "intent": "ORDER_CREATE|ORDER_TRACK|ORDER_CANCEL|ORDER_MODIFY|PRODUCT_INFO|SHOW_PRODUCT|CONFIRM_ORDER|FAQ|GREETING|COMPLAINT|ESCALATE|OTHER",
   "entities": {
     "product_name": "string or null",
     "quantity": "number or null",
@@ -67,29 +69,49 @@ const SYSTEM_PROMPT = `أنت وكيل خدمة العملاء ديال متجر
 - If sentiment < -0.7, set flow_decision to "needs_escalation"
 - Be helpful but don't over-talk
 
-**Product Recommendations Examples:**
-- If customer buys winter jacket, suggest leather belt or warm socks
-- If customer buys jeans, suggest belt or t-shirt
-- If customer buys sneakers, suggest cotton socks
-- If customer buys leather bag, suggest belt for matching style
-- Always ask: "واش بغيتي شي حاجة أخرى تحتاج؟" (want anything else you might need?)
-
-**Intents:**
+**Intent Classification:**
 - GREETING: Customer says hi/مرحبا/سلام/شنو اللي بك
-- PRODUCT_INFO: Customer asks about products/prices/colors/sizes or wants recommendations
-- ORDER_CREATE: Customer wants to place new order
+- PRODUCT_INFO: Customer asks about products/prices/colors/sizes or wants text-based info
+- SHOW_PRODUCT: Customer asks for PHOTOS/IMAGES of products — "صور", "صورة", "زريني", "show me", "send photos", "أرسل لي صور", "bghit nshuf", "show product", "طلب صور"
+- ORDER_CREATE: Customer wants to place a new order
+- CONFIRM_ORDER: Customer confirms/approves the order summary — "نعم", "أيه", "تمام", "حاضر", "ماشي", "yes", "confirm", "واكا", "صحيح", "موافق"
 - ORDER_TRACK: Customer asks about order status/shipping
 - ORDER_CANCEL: Customer wants to cancel existing order (إلغي، بطل، غادي نسحبها)
 - ORDER_MODIFY: Customer wants to change order items/address/payment (غير، عدل، بدل، صحح)
 - FAQ: Customer asks about returns/shipping/payment/warranty/discount
 - COMPLAINT: Customer has problem/complaint/issue
 - ESCALATE: Customer asks for human agent or very angry
-- OTHER: Doesn't fit above`;
+- OTHER: Doesn't fit above
 
-const sendMessage = async (userMessage, conversationHistory = []) => {
+**Product Recommendations Examples:**
+- If customer buys winter jacket, suggest leather belt or warm socks
+- If customer buys jeans, suggest belt or t-shirt
+- If customer buys sneakers, suggest cotton socks
+- If customer buys leather bag, suggest belt for matching style
+- Always ask: "واش بغيتي شي حاجة أخرى تحتاج؟" (want anything else you might need?)`;
+
+const buildSystemPrompt = (products = [], agentConfig = null) => {
+  let prompt = agentConfig?.system_prompt_override || SYSTEM_PROMPT;
+
+  if (products && products.length > 0) {
+    const catalog = products.map((p) => {
+      const sizes = Array.isArray(p.sizes) ? p.sizes.join(', ') : (p.sizes || 'N/A');
+      const colors = Array.isArray(p.colors) ? p.colors.join(', ') : (p.colors || 'N/A');
+      const hasImage = p.image_url ? '📷' : '';
+      return `• ${hasImage} ${p.name} — ${p.price} MAD | Sizes: ${sizes} | Colors: ${colors} | Stock: ${p.stock_quantity ?? 0}`;
+    }).join('\n');
+
+    prompt += `\n\n**CATALOG (use ONLY these products — no invented items):**\n${catalog}\n\nإذا سأل العميل على المنتجات، استعمل فقط هاد المنتجات اللي فوق.`;
+  }
+
+  return prompt;
+};
+
+const sendMessage = async (userMessage, conversationHistory = [], products = [], agentConfig = null) => {
   try {
+    const systemPrompt = buildSystemPrompt(products, agentConfig);
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       ...conversationHistory.map(msg => ({
         role: msg.role === 'bot' ? 'assistant' : msg.role,
         content: msg.content,
@@ -100,6 +122,7 @@ const sendMessage = async (userMessage, conversationHistory = []) => {
     const response = await client.chat.completions.create({
       model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
       max_tokens: 1024,
+      response_format: { type: 'json_object' },
       messages,
     });
 
@@ -111,7 +134,6 @@ const sendMessage = async (userMessage, conversationHistory = []) => {
       completionTokens: response.usage?.completion_tokens,
     });
 
-    // Parse JSON response from Claude
     let analysisResult = {
       intent: 'OTHER',
       entities: {},
@@ -119,11 +141,11 @@ const sendMessage = async (userMessage, conversationHistory = []) => {
       missing_fields: [],
       response: assistantMessage,
       flow_decision: 'awaiting_info',
+      product_recommendations: [],
       usage: response.usage,
     };
 
     try {
-      // Try to extract JSON from Claude's response
       const jsonMatch = assistantMessage.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
@@ -134,12 +156,12 @@ const sendMessage = async (userMessage, conversationHistory = []) => {
           missing_fields: Array.isArray(parsed.missing_fields) ? parsed.missing_fields : [],
           response: parsed.response || assistantMessage,
           flow_decision: parsed.flow_decision || 'awaiting_info',
+          product_recommendations: Array.isArray(parsed.product_recommendations) ? parsed.product_recommendations : [],
           usage: response.usage,
         };
       }
     } catch (parseError) {
-      logger.warn('Failed to parse Claude JSON response, using fallback', { error: parseError.message });
-      // Fallback: text response will be used as-is
+      logger.warn('Failed to parse JSON response, using fallback', { error: parseError.message });
     }
 
     return analysisResult;
@@ -155,20 +177,11 @@ const detectIntent = async (userMessage) => {
       model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
       max_tokens: 20,
       messages: [
-        {
-          role: 'system',
-          content: 'You are an intent classifier. Respond with ONLY one of these labels: GREETING, PRODUCT_INFO, ORDER_CREATE, ORDER_TRACK, FAQ, COMPLAINT, ESCALATE, OTHER',
-        },
-        {
-          role: 'user',
-          content: `Classify this customer message: "${userMessage}"`,
-        },
+        { role: 'system', content: 'You are an intent classifier. Respond with ONLY one of: GREETING, PRODUCT_INFO, SHOW_PRODUCT, ORDER_CREATE, CONFIRM_ORDER, ORDER_TRACK, FAQ, COMPLAINT, ESCALATE, OTHER' },
+        { role: 'user', content: `Classify: "${userMessage}"` },
       ],
     });
-
-    const intent = response.choices[0].message.content.trim().toUpperCase();
-    logger.debug('Intent detected', { intent, message: userMessage });
-    return intent;
+    return response.choices[0].message.content.trim().toUpperCase();
   } catch (error) {
     logger.error('Error detecting intent', { error: error.message });
     return 'OTHER';
@@ -181,22 +194,13 @@ const extractEntities = async (userMessage) => {
       model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
       max_tokens: 200,
       messages: [
-        {
-          role: 'system',
-          content: 'You are an entity extractor. Return ONLY valid JSON with keys: product_name, quantity, size, color, order_id. Use null for missing fields.',
-        },
-        {
-          role: 'user',
-          content: `Extract entities from: "${userMessage}"`,
-        },
+        { role: 'system', content: 'You are an entity extractor. Return ONLY valid JSON with keys: product_name, quantity, size, color, order_id. Use null for missing fields.' },
+        { role: 'user', content: `Extract entities from: "${userMessage}"` },
       ],
     });
-
     const text = response.choices[0].message.content.trim();
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const entities = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-    logger.debug('Entities extracted', { entities });
-    return entities;
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : {};
   } catch (error) {
     logger.error('Error extracting entities', { error: error.message });
     return {};
@@ -209,19 +213,11 @@ const analyzeSentiment = async (userMessage) => {
       model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
       max_tokens: 10,
       messages: [
-        {
-          role: 'system',
-          content: 'You are a sentiment analyzer. Return ONLY a decimal number from -1.0 (very negative) to 1.0 (very positive). No explanation.',
-        },
-        {
-          role: 'user',
-          content: `Sentiment score for: "${userMessage}"`,
-        },
+        { role: 'system', content: 'You are a sentiment analyzer. Return ONLY a decimal number from -1.0 to 1.0. No explanation.' },
+        { role: 'user', content: `Sentiment for: "${userMessage}"` },
       ],
     });
-
     const score = parseFloat(response.choices[0].message.content.trim());
-    logger.debug('Sentiment analyzed', { score });
     return isNaN(score) ? 0 : score;
   } catch (error) {
     logger.error('Error analyzing sentiment', { error: error.message });
@@ -229,9 +225,4 @@ const analyzeSentiment = async (userMessage) => {
   }
 };
 
-module.exports = {
-  sendMessage,
-  detectIntent,
-  extractEntities,
-  analyzeSentiment,
-};
+module.exports = { sendMessage, detectIntent, extractEntities, analyzeSentiment };
