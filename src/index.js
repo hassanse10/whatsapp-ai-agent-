@@ -102,7 +102,7 @@ app.use('/api/delivery-men',  require('./routes/deliveryMen'));
 
 // Serve React frontend in production
 if (process.env.NODE_ENV === 'production') {
-  const clientPath = path.join(__dirname, '..', 'client', 'dist');
+  const clientPath = path.join(__dirname, 'client', 'dist');
   app.use(express.static(clientPath));
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api')) {
