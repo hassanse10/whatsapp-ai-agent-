@@ -26,10 +26,17 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
+# Install backend dependencies
 COPY package*.json ./
 RUN npm install
 
+# Install frontend dependencies and build React app
+COPY src/client/package*.json ./src/client/
+RUN cd src/client && npm install
+
 COPY . .
+
+RUN cd src/client && npm run build
 
 EXPOSE 10000
 
