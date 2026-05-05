@@ -186,7 +186,7 @@ const handleOrderCreate = async (context) => {
         const size = entities.size || sizes[0] || '';
         const color = entities.color || colors[0] || '';
         const price = parseFloat(product.price) || 0;
-        const newItem = { product_name: product.name, quantity, size, color, price };
+        const newItem = { product_id: product.id, product_name: product.name, quantity, size, color, price };
         if (!existingItems.some(i => i.product_name === product.name && i.size === size && i.color === color)) {
           existingItems.push(newItem);
         }

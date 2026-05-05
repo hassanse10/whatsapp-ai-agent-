@@ -19,6 +19,12 @@ const createOrder = async (customerId, orderNumber, items, totalPrice, shippingA
         'INSERT INTO order_items (order_id, product_name, quantity, size, color, price) VALUES ($1, $2, $3, $4, $5, $6)',
         [orderId, item.product_name, item.quantity, item.size, item.color, item.price]
       );
+      if (item.product_id) {
+        await client.query(
+          'UPDATE user_products SET stock_quantity = GREATEST(0, stock_quantity - $1) WHERE id = $2',
+          [item.quantity, item.product_id]
+        );
+      }
     }
 
     await client.query('COMMIT');
