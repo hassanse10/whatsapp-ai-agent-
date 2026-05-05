@@ -38,6 +38,6 @@ COPY . .
 
 RUN cd src/client && npm run build
 
-EXPOSE 10000
+EXPOSE 3000
 
 CMD ["sh", "-c", "find /app/.wwebjs_auth -name 'SingletonLock' -delete 2>/dev/null; find /app/.wwebjs_auth -name 'SingletonCookie' -delete 2>/dev/null; node src/index.js"]

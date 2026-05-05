@@ -16,7 +16,9 @@ const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1);
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: process.env.NODE_ENV === 'production'
+    ? process.env.CLIENT_URL
+    : (process.env.CLIENT_URL || 'http://localhost:5173'),
   credentials: true,
 }));
 app.use(helmet({ contentSecurityPolicy: false }));
