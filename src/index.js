@@ -15,9 +15,15 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1);
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  credentials: true,
+}));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 200 }));
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
+app.use('/api/auth/signin', authLimiter);
+app.use('/api/auth/signup', authLimiter);
 app.use(express.json());
 
 // ── SSE endpoint for real-time dashboard updates ──────────────────────────────

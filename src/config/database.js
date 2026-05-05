@@ -13,7 +13,7 @@ const isCloudDB = process.env.DATABASE_URL && (
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: (isProduction || isCloudDB) ? { rejectUnauthorized: false } : false,
-  max: 20,
+  max: process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX) : 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
