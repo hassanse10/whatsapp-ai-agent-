@@ -1,9 +1,13 @@
 const logger = require('../utils/logger');
-const { INTENTS, ESCALATION_REASONS, FAQ } = require('../config/constants');
+const { INTENTS, ESCALATION_REASONS, FAQ, PRODUCTS, PAYMENT_METHODS } = require('../config/constants');
 const orderService = require('../services/orderService');
 const shippingService = require('../services/shippingService');
 const conversationService = require('../services/conversationService');
 const { broadcastToUser } = require('../services/whatsappSessionManager');
+const { MessageMedia } = require('whatsapp-web.js');
+const axios = require('axios');
+const { formatPrice, calculateOrderTotal } = require('../utils/helpers');
+const customerModel = require('../models/customer');
 
 const PAYMENT_LABELS = {
   cash_on_delivery: '💵 الأداء عند التسليم',
@@ -88,8 +92,6 @@ const handleGreeting = async (context) => {
 
 // Shared image-sending logic used by both PRODUCT_INFO and SHOW_PRODUCT
 const sendProductCards = async (productsToShow, msg) => {
-  const { MessageMedia } = require('whatsapp-web.js');
-  const axios = require('axios');
 
   const joinField = (val) => {
     if (!val) return 'N/A';
@@ -130,8 +132,7 @@ const sendProductCards = async (productsToShow, msg) => {
 
 const handleProductInfo = async (context) => {
   const { msg, message, entities, products: dbProducts } = context;
-  const { PRODUCTS: hardcodedProducts } = require('../config/constants');
-  const allProducts = (dbProducts && dbProducts.length > 0) ? dbProducts : hardcodedProducts;
+  const allProducts = (dbProducts && dbProducts.length > 0) ? dbProducts : PRODUCTS;
 
   if (allProducts.length === 0) return `ماكاينش منتجات متاحة دابا. عاود لاحقاً!`;
 
@@ -152,8 +153,7 @@ const handleProductInfo = async (context) => {
 // SHOW_PRODUCT: explicit image request — "زريني صور", "send photos", "طلب صور"
 const handleShowProduct = async (context) => {
   const { msg, entities, products: dbProducts } = context;
-  const { PRODUCTS: hardcodedProducts } = require('../config/constants');
-  const allProducts = (dbProducts && dbProducts.length > 0) ? dbProducts : hardcodedProducts;
+  const allProducts = (dbProducts && dbProducts.length > 0) ? dbProducts : PRODUCTS;
 
   if (allProducts.length === 0) return `ماكاينش منتجات متاحة دابا.`;
 
@@ -170,8 +170,6 @@ const handleShowProduct = async (context) => {
 // ORDER_CREATE: collects order details step by step
 const handleOrderCreate = async (context) => {
   const { conversationId, customer, entities, claudeResponse, message, products: dbProducts, userId } = context;
-  const { formatPrice, calculateOrderTotal } = require('../utils/helpers');
-  const { PAYMENT_METHODS } = require('../config/constants');
 
   const flowState = await conversationService.getFlowState(conversationId) || {};
   const existingItems = flowState.items || [];
@@ -226,7 +224,6 @@ const handleOrderCreate = async (context) => {
 // CONFIRM_ORDER: customer confirmed — create order immediately + emit SSE
 const handleConfirmOrder = async (context) => {
   const { conversationId, customer, products: dbProducts, userId } = context;
-  const { formatPrice, calculateOrderTotal } = require('../utils/helpers');
 
   const flowState = await conversationService.getFlowState(conversationId) || {};
   const existingItems = flowState.items || [];
@@ -251,7 +248,6 @@ const handleConfirmOrder = async (context) => {
     );
 
     if (collectedData.name) {
-      const customerModel = require('../models/customer');
       await customerModel.updateCustomerName(customer.id, collectedData.name);
     }
 
@@ -284,7 +280,6 @@ const handleConfirmOrder = async (context) => {
 
 const handleOrderTrack = async (context) => {
   const { customer, entities, userId } = context;
-  const { formatPrice } = require('../utils/helpers');
 
   if (entities?.order_id) {
     const order = await orderService.getOrderByNumber(entities.order_id, userId);
